@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@source "../../../app/frontend/**/*.tsx";
+
+/* OptionsChainTable — dynamic background classes (bypasses Tailwind v4 scanner) */
+.opt-call-selected { background-color: rgb(34 197 94 / 0.30); }   /* green: call 選中 */
+.opt-put-selected  { background-color: rgb(239 68 68 / 0.30); }   /* red:   put 選中  */
+.opt-call-itm      { background-color: rgb(2 44 34 / 0.6); }
+.opt-put-itm       { background-color: rgb(69 10 10 / 0.6); }
+
+/* Markdown body styles */
+.md-body h1 { font-size: 1.375rem; font-weight: 700; color: #111827; margin-top: 1.5rem; margin-bottom: .5rem; }
+.md-body h2 { font-size: 1.125rem; font-weight: 700; color: #111827; margin-top: 1.5rem; margin-bottom: .5rem; padding-bottom: .25rem; border-bottom: 1px solid #e5e7eb; }
+.md-body h3 { font-size: 1rem; font-weight: 700; color: #1f2937; margin-top: 1.25rem; margin-bottom: .375rem; }
+.md-body h4 { font-size: .9375rem; font-weight: 600; color: #374151; margin-top: 1rem; margin-bottom: .25rem; }
+.md-body p  { margin-top: .5rem; line-height: 1.7; }
+.md-body ul,.md-body ol { margin: .5rem 0 .5rem 1.5rem; }
+.md-body li { margin-bottom: .3rem; list-style: disc; line-height: 1.65; }
+.md-body strong { font-weight: 600; }
+.md-body em { font-style: italic; }
+.md-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.25rem 0; }
+.md-body blockquote { border-left: 3px solid #c7d2fe; background: #eef2ff; padding: .6rem .75rem; color: #374151; margin: .75rem 0; border-radius: 0 .375rem .375rem 0; }
+.md-body code { background: #f3f4f6; border-radius: .25rem; padding: .1rem .3rem; font-size: .8125rem; font-family: monospace; }
+.md-body table { width: 100%; border-collapse: collapse; margin: .75rem 0; font-size: .8125rem; table-layout: auto; }
+.md-body th { background: #f3f4f6; text-align: left; padding: .5rem .75rem; font-weight: 600; color: #374151; border: 1px solid #d1d5db; }
+.md-body td { padding: .45rem .75rem; border: 1px solid #d1d5db; color: #374151; vertical-align: top; white-space: normal; }
+.md-body tr:nth-child(even) td { background: #f9fafb; }
+
+/* NProgress */
+#nprogress .bar { background: #2563eb; height: 3px; }
+#nprogress .peg  { box-shadow: 0 0 10px #2563eb, 0 0 5px #2563eb; }
