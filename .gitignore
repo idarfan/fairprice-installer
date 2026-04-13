@@ -1,0 +1,65 @@
+# 敏感檔案（絕對不能推上公開 repo）
+.env*
+!.env.example
+config/master.key
+config/credentials/*.key
+
+# Rails
+/log/*
+/tmp/*
+/storage/*
+/public/assets
+/public/packs
+
+# SQLite
+/db/*.sqlite3
+/db/*.sqlite3-*
+
+# Bundler
+/vendor/bundle
+
+# Python venv（options collector）
+/scripts/venv/
+
+# Windows WSL2 Zone.Identifier
+*:Zone.Identifier
+
+# OS / 編輯器
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Node
+/node_modules
+
+# Claude Code 本地設定
+.claude/settings.local.json
+.claude/command-log.txt
+
+# 測試覆蓋率報告
+/coverage/
+
+# docs 截圖與 PDF（不追蹤二進制媒體）
+docs/*.png
+docs/*.jpg
+docs/*.pdf
+
+# 開發過程產生的暫時檔案
+*.png
+*.jpg
+.playwright-mcp/
+mcp_temp_picture/
+public/tech_prototype.html
+stories/
+
+# Vite Ruby
+/public/vite*
+node_modules
+# Vite uses dotenv and suggests to ignore local-only env files. See
+# https://vitejs.dev/guide/env-and-mode.html#env-files
+*.local
+
+
+*storybook.log
+storybook-static
