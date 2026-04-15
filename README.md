@@ -52,6 +52,16 @@ bundle exec rubocop -a   # 自動修正
 
 ## 變更記錄
 
+### 2026-04-15 — 技術分析圖表 S/R 升級 & AI 報告修正
+
+**動機：** 支撐/阻力線只有兩條語義不清、盤中資料點過少導致 S/R 計算不準、線跑出可視範圍時看不到標籤，以及 AI 報告自行捏造 S/R 數字。
+
+**異動內容：**
+- `app/models/charts/technical_indicators.rb`：`calc_support_resistance` 改回傳 5 個命名欄位（short_support / mid_support / strong_support / short_resistance / strong_resistance）；`cluster_levels` 新增 `max:` 參數
+- `app/controllers/api/v1/charts_controller.rb`：1D/5D 盤中圖表改從 1M 日線計算 S/R；新增 `empty_sr_levels` 供純盤中範圍使用
+- `app/frontend/technicals/TechnicalsChart.tsx`：SR_LINES 定義 5 條語義線（深色底高對比色板：紅粗/橙/翠綠/青/靛藍粗）；圖例動態顯示有資料的線條；圖表下方新增 S/R 文字摘要列
+- `app/services/ouou_analysis_service.rb`：S/R 價位改由演算法計算後注入 prompt，AI 原文輸出，不再自行捏造
+
 ### 2026-03-17 — 修復歐歐分析重複點擊導致串流衝突
 
 **動機：** 串流進行中再次點擊 🐱 按鈕會開第二條 EventSource 連線，兩條互相寫同一面板，導致分析停頓或需點第二次才出現結果。
