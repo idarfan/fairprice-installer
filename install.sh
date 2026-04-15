@@ -492,7 +492,7 @@ phase6_deps() {
   ok "bundle install 完成"
 
   info "執行 npm install..."
-  npm install --silent
+  npm install --legacy-peer-deps --silent
   ok "npm install 完成"
 }
 
@@ -545,8 +545,8 @@ phase7_database() {
 
   info "建立測試資料庫（rspec 用）..."
   RAILS_ENV=test bundle exec rails db:create 2>/dev/null || info "測試資料庫已存在，略過建立"
-  RAILS_ENV=test bundle exec rails db:schema:load 2>/dev/null
-  ok "測試資料庫建立完成（fairprice_test）"
+  RAILS_ENV=test bundle exec rails db:schema:load 2>/dev/null || warn "測試資料庫 schema 載入失敗（不影響 app 運作，可稍後手動執行）"
+  ok "測試資料庫步驟完成"
 }
 
 _configure_pg_hba() {
@@ -557,22 +557,27 @@ _configure_pg_hba() {
   local hba_file="/etc/postgresql/${pg_ver}/main/pg_hba.conf"
   [[ ! -f "$hba_file" ]] && return
 
-  if grep -qP '^host\s+all\s+all\s+127\.0\.0\.1' "$hba_file" 2>/dev/null; then
-    skip "pg_hba.conf TCP 認證已設定"
-    return
-  fi
+  local auth_method="trust"
+  [[ -n "${DB_PASSWORD:-}" ]] && auth_method="md5"
 
-  info "設定 PostgreSQL TCP 認證（md5）..."
-  sudo sed -i \
-    '/^# IPv4 local connections:/a host    all             all             127.0.0.1\/32            md5' \
-    "$hba_file" 2>/dev/null || true
+  info "設定 PostgreSQL TCP 認證（${auth_method}）..."
+  # 若已有 127.0.0.1 那行，直接把認證方式改掉；否則插入新行
+  if grep -qP '^host\s+all\s+all\s+127\.0\.0\.1' "$hba_file" 2>/dev/null; then
+    sudo sed -i -E \
+      "s|^(host\s+all\s+all\s+127\.0\.0\.1/32\s+)\S+|\1${auth_method}|" \
+      "$hba_file"
+  else
+    sudo sed -i \
+      "/^# IPv4 local connections:/a host    all             all             127.0.0.1\/32            ${auth_method}" \
+      "$hba_file"
+  fi
 
   if $HAS_SYSTEMD; then
     sudo systemctl reload postgresql &>/dev/null || true
   else
     sudo service postgresql reload &>/dev/null || true
   fi
-  ok "pg_hba.conf 設定完成"
+  ok "pg_hba.conf 設定完成（${auth_method}）"
 }
 
 # ============================================================
@@ -642,7 +647,7 @@ module.exports = {
     {
       name: 'fairprice-vite',
       script: 'npm',
-      args: 'exec vite -- --mode development',
+      args: 'exec vite -- --mode development --host 0.0.0.0',
       cwd: '${APP_DIR}',
       interpreter: 'none',
       autorestart: true,
@@ -843,7 +848,7 @@ phase10_pm2() {
     node_path="$(dirname "$(which node)")"
     local pm2_bin
     pm2_bin="$(which pm2)"
-    echo -e "  ${BOLD}sudo env PATH=\$PATH:${node_path} ${pm2_bin} startup systemd -u ${INSTALL_USER} --hp ${HOME_DIR}${NC}"
+    echo -e "  ${BOLD}sudo env \"PATH=\$PATH:${node_path}\" ${pm2_bin} startup systemd -u ${INSTALL_USER} --hp ${HOME_DIR}${NC}"
     echo ""
   else
     # 無 systemd：.bashrc hook
