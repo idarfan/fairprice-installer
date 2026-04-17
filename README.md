@@ -52,15 +52,16 @@ bundle exec rubocop -a   # 自動修正
 
 ## 變更記錄
 
-### 2026-04-15 — 技術分析圖表 S/R 升級 & AI 報告修正
+### 2026-04-17 — Options 頁面可調整框格 + Navbar 字體大小控制
 
-**動機：** 支撐/阻力線只有兩條語義不清、盤中資料點過少導致 S/R 計算不準、線跑出可視範圍時看不到標籤，以及 AI 報告自行捏造 S/R 數字。
+**動機：** 提升 Options 頁面彈性：三個固定框格改為可拖動調整並記憶位置；Navbar 加入 5 個字體大小按鍵。
 
 **異動內容：**
-- `app/models/charts/technical_indicators.rb`：`calc_support_resistance` 改回傳 5 個命名欄位（short_support / mid_support / strong_support / short_resistance / strong_resistance）；`cluster_levels` 新增 `max:` 參數
-- `app/controllers/api/v1/charts_controller.rb`：1D/5D 盤中圖表改從 1M 日線計算 S/R；新增 `empty_sr_levels` 供純盤中範圍使用
-- `app/frontend/technicals/TechnicalsChart.tsx`：SR_LINES 定義 5 條語義線（深色底高對比色板：紅粗/橙/翠綠/青/靛藍粗）；圖例動態顯示有資料的線條；圖表下方新增 S/R 文字摘要列
-- `app/services/ouou_analysis_service.rb`：S/R 價位改由演算法計算後注入 prompt，AI 原文輸出，不再自行捏造
+- `app/frontend/options/OptionsAnalyzerApp.tsx`：改用 `react-resizable-panels` v2，三個 `Group`/`Panel`/`Separator` 結構；`useDefaultLayout` 自動 localStorage 持久化；header 加入「↺ 還原版面」按鈕
+- `app/components/fair_value/font_size_controls_component.rb`：新建，5 個遞增大小的 A 按鍵（14-18px），修改 `html` 根字體，localStorage 持久化
+- `app/components/fair_value/navbar_component.rb`：AppSwitcher 右側加入字體大小控制元件
+- `app/views/layouts/application.html.erb`：head 最頂加 early-paint script 防止字體閃爍 (FOUC)
+- `app/assets/tailwind/application.css`：加入 resize handle 所需 CSS（cursor-col/row-resize、w/h-1.5、hover:bg-blue-400）
 
 ### 2026-03-17 — 修復歐歐分析重複點擊導致串流衝突
 
@@ -308,6 +309,33 @@ bundle exec rubocop -a   # 自動修正
 | `app/services/ouou_analysis_service.rb` | 新增 `analysis_date_footer` 方法；串流完成後 emit footer chunk 並寫入 cache |
 | `app/views/layouts/application.html.erb` | 新增 `html2canvas@1.4.1` CDN script |
 | `app/components/daily_momentum/analysis_panel_component.rb` | `renderMarkdown` 加入匯出按鈕；新增 `exportPng`、`exportPdf` 函式與 click 委派 |
+
+### 2026-04-17 — Options 頁面三框格可調整大小 + Navbar 字體大小控制
+
+**新增功能**
+
+- `react-resizable-panels` v4 接入 Options 頁面，支援三組可拖動邊界（左側 sidebar / 損益圖 / 策略列表）
+- 各面板位置自動記憶至 localStorage（`react-resizable-panels:options-*`）
+- Header 新增「↺ 還原版面」按鈕，一鍵恢復預設比例（13/87/34/66/22/78%）
+- Navbar AppSwitcher 右側加入五個字體大小按鍵（14–18px），含 `fairprice:font-size` localStorage 記憶與早期渲染腳本（防 FOUC）
+
+**修正 Bug**
+
+- `react-resizable-panels` v4 Panel 尺寸 prop 必須為字串百分比（如 `"13%"`），傳入純數字會被解讀為 px，導致面板被 maxSize 鎖死在 ~2%
+- `options-root` 缺少 `flex flex-col`，造成 React `h-full` 失效、Group 高度僅 288px（修正後 517px）
+- React 根容器改為 `flex-1 min-h-0`，確保在 flex 父容器中正確撐開高度
+
+**涉及檔案**
+
+| 檔案 | 說明 |
+|------|------|
+| `app/frontend/options/OptionsAnalyzerApp.tsx` | 主要改寫：Panel 尺寸改字串 %、根容器高度修正 |
+| `app/components/options/page_component.rb` | 加入 `flex flex-col` 解決高度鏈問題 |
+| `app/components/fair_value/font_size_controls_component.rb` | 新建：5 個字體大小按鍵元件 |
+| `app/components/fair_value/navbar_component.rb` | 加入 FontSizeControls |
+| `app/views/layouts/application.html.erb` | 加入早期渲染字體大小腳本 |
+| `app/assets/tailwind/application.css` | 新增 resize handle 靜態 class 定義 |
+| `package.json` | 新增 react-resizable-panels ^4.10.0 |
 
 ### 2026-04-03 — routes.rb 重構：抽常數、改用 resources
 
