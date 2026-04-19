@@ -29,11 +29,20 @@ function calcDte(expiration: string): number {
 function buildChainRows(
   snapshots: OptionSnapshotRow[],
   expiration: string,
+  underlyingPrice = 0,
+  nearCount = 6,
 ): StrikeRow[] {
   const filtered = snapshots.filter((s) => s.expiration === expiration);
-  const strikes = [...new Set(filtered.map((s) => s.strike))].sort(
+  let strikes = [...new Set(filtered.map((s) => s.strike))].sort(
     (a, b) => a - b,
   );
+
+  if (underlyingPrice > 0) {
+    const below = strikes.filter((s) => s <= underlyingPrice).slice(-nearCount);
+    const above = strikes.filter((s) => s > underlyingPrice).slice(0, nearCount);
+    strikes = [...below, ...above];
+  }
+
   return strikes.map((strike) => ({
     strike,
     call:
@@ -61,6 +70,7 @@ export default function OptionPriceTrackerApp({ initialTickers }: Props) {
   const [snapshotDate, setSnapshotDate] = useState<string | null>(null);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [underlyingPrice, setUnderlyingPrice] = useState(0);
+  const [callPutFilter, setCallPutFilter] = useState<"both" | "call" | "put">("both");
 
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
   const [trendData, setTrendData] = useState<PremiumTrendPoint[]>([]);
@@ -217,7 +227,7 @@ export default function OptionPriceTrackerApp({ initialTickers }: Props) {
     if (selected) loadSnapshots(selected);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const chainRows = selectedExp ? buildChainRows(snapshots, selectedExp) : [];
+  const chainRows = selectedExp ? buildChainRows(snapshots, selectedExp, underlyingPrice) : [];
   const dte = selectedExp ? calcDte(selectedExp) : null;
 
   return (
@@ -257,9 +267,32 @@ export default function OptionPriceTrackerApp({ initialTickers }: Props) {
 
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-200 bg-white shrink-0">
-              <span className="text-xs text-gray-500 font-medium">
-                Calls / Puts
-              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCallPutFilter((f) => (f === "call" ? "both" : "call"))}
+                  className={`px-2.5 py-0.5 rounded text-xs font-semibold transition-colors ${
+                    callPutFilter === "call"
+                      ? "btn-calls-active"
+                      : callPutFilter === "put"
+                        ? "btn-filter-muted"
+                        : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  }`}
+                >
+                  Calls
+                </button>
+                <button
+                  onClick={() => setCallPutFilter((f) => (f === "put" ? "both" : "put"))}
+                  className={`px-2.5 py-0.5 rounded text-xs font-semibold transition-colors ${
+                    callPutFilter === "put"
+                      ? "btn-puts-active"
+                      : callPutFilter === "call"
+                        ? "btn-filter-muted"
+                        : "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                  }`}
+                >
+                  Puts
+                </button>
+              </div>
               <span className="font-mono font-bold text-sm text-gray-800">
                 {selected.symbol}
               </span>
@@ -271,11 +304,7 @@ export default function OptionPriceTrackerApp({ initialTickers }: Props) {
                   距離到期日還有 {dte} 天
                 </span>
               )}
-              {underlyingPrice > 0 && (
-                <span className="text-xs text-gray-500 ml-auto">
-                  現價 ${underlyingPrice.toFixed(2)}
-                </span>
-              )}
+
               {loading && (
                 <span className="text-xs text-blue-600">載入中…</span>
               )}
@@ -288,6 +317,7 @@ export default function OptionPriceTrackerApp({ initialTickers }: Props) {
                 <OptionsChainTable
                   rows={chainRows}
                   underlyingPrice={underlyingPrice}
+                  filter={callPutFilter}
                   selectedContract={selectedContract}
                   onSelect={loadTrend}
                 />
