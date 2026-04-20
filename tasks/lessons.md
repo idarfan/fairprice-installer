@@ -431,3 +431,39 @@ python3 -c "pattern = '\d+'"
   ```
   或確認關鍵 DOM 元素已存在再截圖。
 - 若截圖持續 timeout，改用 `browser_evaluate` 驗證 DOM 狀態作為替代驗證手段。
+
+---
+
+### 錯誤 6：高輸出指令與大檔讀取未使用 RTK 前綴
+
+**過錯：** 今日 session 中以下指令未加 `rtk` 前綴，直接消耗大量 context：
+- `git log --oneline` / `git show <sha> --stat`（輸出超過 5000 行 diff）
+- `cat architecture_spec.yml`、`cat 工作日誌.md`
+- Read tool 讀取 `package.sh`（89 行，應用 `rtk read`）
+
+**根本原因：** 沒有養成「每次 Bash 前先問自己：這個指令輸出量大嗎？」的反射動作。
+
+**防治（強制清單）：**
+- `git log`、`git show`、`git diff` → 一律 `rtk git ...`
+- `cat <file>` → 一律 `rtk cat <file>`
+- 任何 100 行以上的檔案 → 禁用 Read tool，改 `rtk read <path>`
+- 記住：`rtk` 的用途是截斷輸出，保護 context window，不用是浪費 token
+
+**代價：** 一次 `git show` 輸出 5000+ 行 = 數千個 token 白白消耗。
+
+---
+
+### 錯誤 7：RTK hook 無聲改寫，模型不知情無法學習
+
+**過錯：** `rtk-rewrite.sh` v3 自動改寫 Bash 指令但不輸出任何提示，模型完全看不到改寫發生，無法建立「下次主動寫 rtk」的回饋迴路。
+
+**根本原因：** 無聲改寫 = 安全網，但不是學習機制。模型持續犯同樣的錯誤，hook 持續代勞。
+
+**修正（v4）：** 改寫時同時向 stderr 輸出警告：
+```
+⚠️  [RTK 強制] 下次請直接寫 rtk 版本，不要等 hook 代勞：
+    原始: git log --oneline -10
+    改為: rtk git log --oneline -10
+```
+
+**設計原則：** hook 必須讓違規行為「有感」，否則是隱形修正，永遠學不會。
