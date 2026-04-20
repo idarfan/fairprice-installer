@@ -1,5 +1,7 @@
 import Tippy from "@tippyjs/react";
 import "tippy.js/dist/tippy.css";
+import "tippy.js/themes/light.css";
+import "./tippy-override.css";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import type { OptionSnapshotRow } from "../types";
@@ -36,7 +38,7 @@ interface TipDef {
 
 function TipContent({ title, formula, desc, example }: TipDef) {
   return (
-    <div style={{ minWidth: 210, maxWidth: 290, padding: "10px 12px", fontSize: 12, lineHeight: 1.55, background: "#fff", color: "#111827" }}>
+    <div style={{ minWidth: 210, maxWidth: 290, padding: "10px 12px", fontSize: 13, lineHeight: 1.55, background: "#fff", color: "#111827", border: "2px solid #86efac", borderRadius: 6 }}>
       <div style={{ fontWeight: 700, fontSize: 13, paddingBottom: 5, marginBottom: 5, borderBottom: "1px solid #e5e7eb" }}>
         {title}
       </div>
@@ -45,9 +47,9 @@ function TipContent({ title, formula, desc, example }: TipDef) {
           <KaTeXSpan formula={formula} />
         </div>
       )}
-      <div style={{ color: "#374151", fontSize: 11, lineHeight: 1.65 }}>{desc}</div>
+      <div style={{ color: "#374151", fontSize: 13, lineHeight: 1.65 }}>{desc}</div>
       {example && (
-        <div style={{ color: "#92400e", fontSize: 11, marginTop: 5, background: "#fef3c7", padding: "3px 6px", borderRadius: 3 }}>
+        <div style={{ color: "#92400e", fontSize: 13, marginTop: 5, background: "#fef3c7", padding: "3px 6px", borderRadius: 3 }}>
           <span style={{ fontWeight: 600 }}>範例：</span>{example}
         </div>
       )}
@@ -59,11 +61,12 @@ function TipContent({ title, formula, desc, example }: TipDef) {
 
 function ColTh({ label, tip, className = "" }: { label: string; tip: TipDef; className?: string }) {
   return (
-    <th className={`px-1.5 py-1 text-[10px] font-medium text-gray-500 uppercase tracking-wide text-right whitespace-nowrap ${className}`}>
+    <th className={`px-1.5 py-1 text-[13px] font-semibold text-gray-600 uppercase tracking-wide text-right whitespace-nowrap ${className}`}>
       <Tippy
         content={<TipContent {...tip} />}
+        theme="light"
         placement="bottom"
-        arrow={true}
+        arrow={false}
         interactive={false}
         maxWidth={310}
         delay={[150, 0]}
@@ -163,75 +166,90 @@ function calcDerived(
 
 // ── Tooltip definitions ───────────────────────────────────────────────────────
 
-const rStr = (RISK_FREE_RATE * 100).toFixed(1);
+function buildTips(s: number): Record<string, TipDef> {
+  const rStr  = (RISK_FREE_RATE * 100).toFixed(1);
+  const sStr  = s > 0 ? s.toFixed(2) : "—";
+  // ~5% OTM strike rounded to nearest $0.50
+  const nearK  = s > 0 ? Math.round(s * 1.05 / 0.5) * 0.5 : 0;
+  const dist   = s > 0 ? (nearK - s).toFixed(2) : "—";
+  const relPct = s > 0 ? ((nearK - s) / s * 100).toFixed(2) : "—";
+  // Typical bid ~2% / ask ~2.2% of current price
+  const typBid    = s > 0 ? (s * 0.02).toFixed(2) : "—";
+  const typAsk    = s > 0 ? (s * 0.022).toFixed(2) : "—";
+  const spreadPct = s > 0 ? ((s * 0.022 - s * 0.02) / (s * 0.02) * 100).toFixed(1) : "—";
+  const bidPctVal = s > 0 ? (s * 0.02 / s * 100).toFixed(2) : "—";
+  const askPctVal = s > 0 ? (s * 0.022 / s * 100).toFixed(2) : "—";
+  const annBidVal = s > 0 ? ((s * 0.02 / s * 100) * 365 / 30).toFixed(1) : "—";
 
-const TIPS: Record<string, TipDef> = {
-  distance: {
-    title: "距離 (Distance)",
-    formula: "K - S",
-    desc: "行權價 K 與現價 S 的差額（帶符號）。正值為 OTM（虛值），負值為 ITM（實值）。",
-    example: "Strike $60, 現價 $56.30 → +3.70",
-  },
-  relDist: {
-    title: "相對距離 (Rel dist)",
-    formula: "\\dfrac{K - S}{S} \\times 100\\%",
-    desc: "行權價偏離現價的百分比，反映期權的虛值程度。越接近 0% 代表越接近平值 ATM。",
-    example: "+3.70 ÷ 56.30 × 100% ≈ +6.57%",
-  },
-  iv: {
-    title: "隱含波動率 (IV)",
-    formula: "\\sigma_{\\text{impl}} = \\mathrm{BS}^{-1}(\\text{Market Price})",
-    desc: "由期權市場價格反推的年化波動率。IV 越高期權越貴，代表市場預期未來波動越大。",
-  },
-  theor: {
-    title: "Black-Scholes 理論價值 (Theor)",
-    formula: "C = S \\cdot N(d_1) - K e^{-rT} N(d_2)",
-    desc: `無風險利率 r = ${rStr}%，T = DTE ÷ 365。d₁ = [ln(S/K) + (r + σ²/2)T] / (σ√T)，d₂ = d₁ − σ√T。不含股息調整。`,
-  },
-  bid: {
-    title: "出價 (Bid)",
-    desc: "市場上買方最高願意支付的價格。Sell to Open（賣出開倉）時，所收權利金以此為基準。",
-  },
-  ask: {
-    title: "要價 (Ask)",
-    desc: "市場上賣方最低願意接受的價格。Buy to Open（買入開倉）時，所付權利金以此為基準。",
-  },
-  spread: {
-    title: "買賣價差% (Spread%)",
-    formula: "\\dfrac{\\text{Ask} - \\text{Bid}}{\\text{Bid}} \\times 100\\%",
-    desc: "Spread% 越低流動性越好，進出成本越低。通常低於 5% 表示流動性尚可。",
-    example: "Bid $1.00, Ask $1.05 → 5%",
-  },
-  bidPct: {
-    title: "Bid 佔現價比 (Bid%)",
-    formula: "\\dfrac{\\text{Bid}}{S} \\times 100\\%",
-    desc: "賣出 Covered Call 或 Cash-Secured Put 的單期收益率，反映期權權利金相對標的現價的比例。",
-    example: "Bid $1.40, 現價 $56.30 → 2.49%",
-  },
-  askPct: {
-    title: "Ask 佔現價比 (Ask%)",
-    formula: "\\dfrac{\\text{Ask}}{S} \\times 100\\%",
-    desc: "買入期權時的成本佔標的現價比例，用於比較不同行權價的相對成本高低。",
-  },
-  annBid: {
-    title: "年化 Bid% (Ann bid%)",
-    formula: "\\text{Bid\\%} \\times \\dfrac{365}{\\text{DTE}}",
-    desc: "將 Bid% 換算為年化收益率。Covered Call / Wheel 策略中最常用的效率指標，反映每年潛在收益率。",
-    example: "Bid% 2.49%, DTE 26 → 年化 ≈ 34.9%",
-  },
-  ltp: {
-    title: "最近成交價 (LTP)",
-    desc: "Last Traded Price。可能與 Bid/Ask 有落差，因最近成交不代表當前最佳報價。",
-  },
-  volume: {
-    title: "今日成交量 (交易量)",
-    desc: "當日所有成交合約筆數的加總。成交量越高代表當日交易越活躍，但不反映持倉狀況。",
-  },
-  oi: {
-    title: "未平倉量 (持倉量)",
-    desc: "Open Interest：目前市場上尚未結算的合約總數。OI 越高代表市場參與度越高，與成交量結合可判斷市場動向。",
-  },
-};
+  return {
+    distance: {
+      title: "距離 (Distance)",
+      formula: "K - S",
+      desc: "行權價 K 與現價 S 的差額（帶符號）。正值為 OTM（虛值），負值為 ITM（實值）。",
+      example: `Strike $${nearK.toFixed(2)}, 現價 $${sStr} → +${dist}`,
+    },
+    relDist: {
+      title: "相對距離 (Rel dist)",
+      formula: "\\dfrac{K - S}{S} \\times 100\\%",
+      desc: "行權價偏離現價的百分比，反映期權的虛值程度。越接近 0% 代表越接近平值 ATM。",
+      example: `+${dist} ÷ ${sStr} × 100% ≈ +${relPct}%`,
+    },
+    iv: {
+      title: "隱含波動率 (IV)",
+      formula: "\\sigma_{\\text{impl}} = \\mathrm{BS}^{-1}(\\text{Market Price})",
+      desc: "由期權市場價格反推的年化波動率。IV 越高期權越貴，代表市場預期未來波動越大。",
+    },
+    theor: {
+      title: "Black-Scholes 理論價值 (Theor)",
+      formula: "C = S \\cdot N(d_1) - K e^{-rT} N(d_2)",
+      desc: `無風險利率 r = ${rStr}%，T = DTE ÷ 365。現價 S = $${sStr}。d₁ = [ln(S/K) + (r + σ²/2)T] / (σ√T)，d₂ = d₁ − σ√T。不含股息調整。`,
+    },
+    bid: {
+      title: "出價 (Bid)",
+      desc: "市場上買方最高願意支付的價格。Sell to Open（賣出開倉）時，所收權利金以此為基準。",
+    },
+    ask: {
+      title: "要價 (Ask)",
+      desc: "市場上賣方最低願意接受的價格。Buy to Open（買入開倉）時，所付權利金以此為基準。",
+    },
+    spread: {
+      title: "買賣價差% (Spread%)",
+      formula: "\\dfrac{\\text{Ask} - \\text{Bid}}{\\text{Bid}} \\times 100\\%",
+      desc: "Spread% 越低流動性越好，進出成本越低。通常低於 5% 表示流動性尚可。",
+      example: `Bid $${typBid}, Ask $${typAsk} → ${spreadPct}%`,
+    },
+    bidPct: {
+      title: "Bid 佔現價比 (Bid%)",
+      formula: "\\dfrac{\\text{Bid}}{S} \\times 100\\%",
+      desc: "賣出 Covered Call 或 Cash-Secured Put 的單期收益率，反映期權權利金相對標的現價的比例。",
+      example: `Bid $${typBid}, 現價 $${sStr} → ${bidPctVal}%`,
+    },
+    askPct: {
+      title: "Ask 佔現價比 (Ask%)",
+      formula: "\\dfrac{\\text{Ask}}{S} \\times 100\\%",
+      desc: "買入期權時的成本佔標的現價比例，用於比較不同行權價的相對成本高低。",
+      example: `Ask $${typAsk}, 現價 $${sStr} → ${askPctVal}%`,
+    },
+    annBid: {
+      title: "年化 Bid% — 賣出期權的年化權利金報酬率",
+      formula: "\\text{Bid\\%} \\times \\dfrac{365}{\\text{DTE}}",
+      desc: "Covered Call / Cash-Secured Put（Wheel）策略的效率指標：假設每期到期後以相同條件重新開倉，推算全年累積的理論收益率。⚠️ 為線性外推，不含複利；不保證每輪成交條件相同，僅供不同行權價的橫向比較。",
+      example: `Bid% ${bidPctVal}%, DTE 30 → 年化 ≈ ${annBidVal}%`,
+    },
+    ltp: {
+      title: "最近成交價 (LTP)",
+      desc: "Last Traded Price。可能與 Bid/Ask 有落差，因最近成交不代表當前最佳報價。",
+    },
+    volume: {
+      title: "今日成交量 (交易量)",
+      desc: "當日所有成交合約筆數的加總。成交量越高代表當日交易越活躍，但不反映持倉狀況。",
+    },
+    oi: {
+      title: "未平倉量 (持倉量)",
+      desc: "Open Interest：目前市場上尚未結算的合約總數。OI 越高代表市場參與度越高，與成交量結合可判斷市場動向。",
+    },
+  };
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -253,8 +271,9 @@ export default function OptionsChainTable({
   const showCalls = filter !== "put";
   const showPuts  = filter !== "call";
   const single    = filter !== "both";
+  const tips       = buildTips(underlyingPrice);
 
-  const thBase = "px-2 py-1.5 text-xs font-medium text-gray-500 uppercase tracking-wider text-right";
+  const thBase = "px-2 py-1.5 text-[13px] font-semibold text-gray-600 uppercase tracking-wider text-right";
   const thL    = `${thBase} border-r border-gray-200`;
   const thR    = `${thBase} border-l border-gray-200 text-left`;
 
@@ -273,19 +292,19 @@ export default function OptionsChainTable({
 
   const expandedHeaders = (
     <>
-      <ColTh label="距離"   tip={TIPS.distance} />
-      <ColTh label="偏離%"  tip={TIPS.relDist} />
-      <ColTh label="IV"     tip={TIPS.iv} />
-      <ColTh label="理論值" tip={TIPS.theor} />
-      <ColTh label="出價"   tip={TIPS.bid} />
-      <ColTh label="要價"   tip={TIPS.ask} />
-      <ColTh label="差價%"  tip={TIPS.spread} />
-      <ColTh label="Bid%"   tip={TIPS.bidPct} />
-      <ColTh label="Ask%"   tip={TIPS.askPct} />
-      <ColTh label="年化%"  tip={TIPS.annBid} />
-      <ColTh label="LTP"    tip={TIPS.ltp} />
-      <ColTh label="量"     tip={TIPS.volume} />
-      <ColTh label="倉"     tip={TIPS.oi} />
+      <ColTh label="距離"   tip={tips.distance} />
+      <ColTh label="偏離%"  tip={tips.relDist} />
+      <ColTh label="IV"     tip={tips.iv} />
+      <ColTh label="理論值" tip={tips.theor} />
+      <ColTh label="出價"   tip={tips.bid} />
+      <ColTh label="要價"   tip={tips.ask} />
+      <ColTh label="差價%"  tip={tips.spread} />
+      <ColTh label="Bid%"   tip={tips.bidPct} />
+      <ColTh label="Ask%"   tip={tips.askPct} />
+      <ColTh label="年化%"  tip={tips.annBid} />
+      <ColTh label="LTP"    tip={tips.ltp} />
+      <ColTh label="交易量"     tip={tips.volume} />
+      <ColTh label="持倉量"     tip={tips.oi} />
     </>
   );
 
