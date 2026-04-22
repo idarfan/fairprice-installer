@@ -842,14 +842,14 @@ phase10_pm2() {
   # 開機自啟
   echo ""
   if $HAS_SYSTEMD; then
-    warn "設定 pm2 開機自啟需要 sudo，請手動執行以下指令："
-    echo ""
     local node_path
     node_path="$(dirname "$(which node)")"
     local pm2_bin
     pm2_bin="$(which pm2)"
-    echo -e "  ${BOLD}sudo env \"PATH=\$PATH:${node_path}\" ${pm2_bin} startup systemd -u ${INSTALL_USER} --hp ${HOME_DIR}${NC}"
-    echo ""
+    info "設定 pm2 開機自啟（systemd）..."
+    sudo env "PATH=$PATH:${node_path}" "${pm2_bin}" startup systemd \
+      -u "${INSTALL_USER}" --hp "${HOME_DIR}"
+    ok "pm2 開機自啟設定完成（WSL 重啟後服務自動恢復）"
   else
     # 無 systemd：.bashrc hook
     if ! grep -q 'pm2 resurrect' "${HOME_DIR}/.bashrc" 2>/dev/null; then
