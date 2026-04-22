@@ -494,6 +494,14 @@ phase6_deps() {
   info "執行 npm install..."
   npm install --legacy-peer-deps --silent
   ok "npm install 完成"
+
+  info "安裝 Python 依賴套件（options collector）..."
+  if command -v pip3 &>/dev/null; then
+    pip3 install --quiet yfinance psycopg2-binary pandas_market_calendars
+    ok "Python 套件安裝完成（yfinance, psycopg2, pandas_market_calendars）"
+  else
+    warn "pip3 未找到，請手動執行：pip3 install yfinance psycopg2-binary pandas_market_calendars"
+  fi
 }
 
 # ============================================================
@@ -684,6 +692,17 @@ ${telegram_apps}
         DB_PASSWORD: '${DB_PASSWORD:-}',
       },
       cron_restart: '0 22 * * *',
+      autorestart: false,
+      watch: false,
+    },
+
+    // ── 期權歷史快照（UTC 20:30 週一至五 = 美東 16:30 盤中）
+    {
+      name: 'fairprice-options-collector',
+      script: 'scripts/options_collector.py',
+      cwd: '${APP_DIR}',
+      interpreter: 'python3',
+      cron_restart: '30 20 * * 1-5',
       autorestart: false,
       watch: false,
     },
