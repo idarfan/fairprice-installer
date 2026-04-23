@@ -549,6 +549,10 @@ phase7_database() {
   RAILS_ENV=development bundle exec rails db:migrate
   ok "資料庫 migrate 完成"
 
+  info "填入預設資料（seed）..."
+  RAILS_ENV=development bundle exec rails db:seed
+  ok "db:seed 完成"
+
   info "建立測試資料庫（rspec 用）..."
   RAILS_ENV=test bundle exec rails db:create 2>/dev/null || info "測試資料庫已存在，略過建立"
   RAILS_ENV=test bundle exec rails db:schema:load 2>/dev/null || warn "測試資料庫 schema 載入失敗（不影響 app 運作，可稍後手動執行）"
