@@ -50,8 +50,7 @@ ask_secret() {
   local var="$1" msg="$2"
   echo -en "${YELLOW}[?]${NC} ${msg}: "
   local input
-  read -rs input
-  echo
+  read -r input
   printf -v "$var" '%s' "$input"
 }
 
@@ -307,8 +306,7 @@ ask_secret_update() {
   fi
 
   echo -en "${YELLOW}[?]${NC} ${label} [${status}，${hint}]: "
-  read -rs input
-  echo
+  read -r input
 
   if [[ -n "$input" ]]; then
     printf -v "$var" '%s' "$input"
