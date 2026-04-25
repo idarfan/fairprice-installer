@@ -888,6 +888,37 @@ BASHRC_PM2
   fi
 }
 
+
+# ============================================================
+# PHASE 10b：期權歷史資料初始抓取
+# ============================================================
+phase10b_options_backfill() {
+  step "期權歷史快照初始抓取"
+
+  # .env 已在 phase7 export，DATABASE_URL 可用
+  if ! command -v python3 &>/dev/null; then
+    warn "python3 未找到，跳過期權初始資料抓取"
+    return
+  fi
+
+  info "抓取追蹤標的當前期權鏈（--force 跳過盤中時間限制）..."
+  info "（此步驟需 CBOE / yfinance 連線，約需 30-120 秒）"
+
+  local log_file
+  log_file="$(mktemp)"
+
+  if python3 scripts/options_collector.py --force > "$log_file" 2>&1; then
+    local rows
+    rows=$(tail -5 "$log_file" | awk -F'upserted ' '/upserted/{sum+=$2} END{print sum+0}')
+    ok "期權初始快照完成（共 ${rows} 筆合約寫入資料庫）"
+  else
+    warn "期權初始資料抓取失敗（非阻斷性），安裝繼續"
+    warn "可稍後手動執行：python3 scripts/options_collector.py --force"
+    tail -5 "$log_file" | while read -r line; do warn "  $line"; done
+  fi
+  rm -f "$log_file"
+}
+
 # ============================================================
 # PHASE 11：健康檢查
 # ============================================================
@@ -975,6 +1006,7 @@ main() {
   phase8_fix_paths
   phase9_build_assets
   phase10_pm2
+  phase10b_options_backfill
   phase11_health_check
   phase12_summary
 }
