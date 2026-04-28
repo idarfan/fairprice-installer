@@ -29,7 +29,6 @@ import logging
 import argparse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 from decimal import Decimal
 from pathlib import Path
 
@@ -72,7 +71,6 @@ INTER_TICKER_DELAY = 2  # seconds between tickers to avoid rate limiting
 
 # ── Market hours guard ────────────────────────────────────────────────
 _NYSE = mcal.get_calendar("NYSE")
-_ET = ZoneInfo("America/New_York")  # snapshot_date must match US trading session, not server local time
 
 def is_market_session(buffer_minutes: int = 30) -> bool:
     """
@@ -194,7 +192,7 @@ def fetch_options_chain_cboe(symbol: str, config: dict) -> list[dict] | None:
         log.warning(f"{symbol}: CBOE — no options data")
         return None
 
-    today = datetime.now(_ET).date()
+    today = date.today()
     snapshots = []
 
     for opt in options:
@@ -285,7 +283,7 @@ def fetch_options_chain(symbol: str, config: dict) -> list[dict]:
         log.warning(f"{symbol}: No options available")
         return []
 
-    today = datetime.now(_ET).date()
+    today = date.today()
     snapshots = []
 
     for exp_str in expirations:
