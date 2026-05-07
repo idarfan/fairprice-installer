@@ -7,12 +7,13 @@
 set -euo pipefail
 
 # ── 版本常數 ────────────────────────────────────────────────
-readonly SCRIPT_VERSION="20260421"
+readonly SCRIPT_VERSION="20260507"
 readonly RUBY_VERSION="4.0.1"
 readonly BUNDLER_VERSION="4.0.7"
 readonly MIN_NODE_MAJOR=20
 readonly RAILS_PORT=3003
 readonly VITE_PORT=3036
+readonly SIDECAR_PORT=5050
 
 # ── 顏色 ────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -50,7 +51,8 @@ ask_secret() {
   local var="$1" msg="$2"
   echo -en "${YELLOW}[?]${NC} ${msg}: "
   local input
-  read -r input
+  read -rs input
+  echo
   printf -v "$var" '%s' "$input"
 }
 
@@ -271,6 +273,49 @@ _install_nodejs() {
   ok "Node.js $(node --version) 安裝完成"
 }
 
+
+# ============================================================
+# PHASE 3b：Python venv + IV Sidecar 依賴
+# ============================================================
+phase3b_python_sidecar() {
+  step "Python venv + IV Sidecar 套件"
+
+  local py_pkgs=(python3-venv python3-pip)
+  local missing_py=()
+  for pkg in "${py_pkgs[@]}"; do
+    dpkg -l "$pkg" &>/dev/null || missing_py+=("$pkg")
+  done
+  if [[ ${#missing_py[@]} -gt 0 ]]; then
+    info "安裝 ${missing_py[*]}..."
+    sudo apt-get install -y "${missing_py[@]}" -q
+  else
+    skip "python3-venv / python3-pip 已安裝"
+  fi
+
+  local venv_dir="${APP_DIR}/python/venv"
+  if [[ ! -f "${venv_dir}/bin/python" ]]; then
+    info "建立 python/venv..."
+    python3 -m venv "$venv_dir"
+    ok "python/venv 建立完成"
+  else
+    skip "python/venv 已存在"
+  fi
+
+  info "安裝 IV Sidecar Python 套件（flask numpy scipy requests yfinance）..."
+  "${venv_dir}/bin/pip" install --quiet --upgrade pip
+  "${venv_dir}/bin/pip" install --quiet flask numpy scipy requests yfinance
+  ok "Python 套件安裝完成"
+
+  cat > bin/start-iv-sidecar.sh << 'SIDECAR_EOF'
+#!/bin/bash
+set -e
+cd "$(dirname "$0")/.."
+exec python/venv/bin/python python/iv_sidecar.py
+SIDECAR_EOF
+  chmod +x bin/start-iv-sidecar.sh
+  ok "bin/start-iv-sidecar.sh 建立完成"
+}
+
 # ============================================================
 # PHASE 4：互動式 API Key 收集 → .env
 # ============================================================
@@ -306,7 +351,8 @@ ask_secret_update() {
   fi
 
   echo -en "${YELLOW}[?]${NC} ${label} [${status}，${hint}]: "
-  read -r input
+  read -rs input
+  echo
 
   if [[ -n "$input" ]]; then
     printf -v "$var" '%s' "$input"
@@ -492,14 +538,6 @@ phase6_deps() {
   info "執行 npm install..."
   npm install --legacy-peer-deps --silent
   ok "npm install 完成"
-
-  info "安裝 Python 依賴套件（options collector）..."
-  if command -v pip3 &>/dev/null; then
-    pip3 install --quiet yfinance psycopg2-binary pandas_market_calendars
-    ok "Python 套件安裝完成（yfinance, psycopg2, pandas_market_calendars）"
-  else
-    warn "pip3 未找到，請手動執行：pip3 install yfinance psycopg2-binary pandas_market_calendars"
-  fi
 }
 
 # ============================================================
@@ -548,10 +586,6 @@ phase7_database() {
   RAILS_ENV=development bundle exec rails db:create 2>/dev/null || info "資料庫已存在，略過建立"
   RAILS_ENV=development bundle exec rails db:migrate
   ok "資料庫 migrate 完成"
-
-  info "填入預設資料（seed）..."
-  RAILS_ENV=development bundle exec rails db:seed
-  ok "db:seed 完成"
 
   info "建立測試資料庫（rspec 用）..."
   RAILS_ENV=test bundle exec rails db:create 2>/dev/null || info "測試資料庫已存在，略過建立"
@@ -683,6 +717,19 @@ ${telegram_apps}
       watch: false,
     },
 
+    // ── IV Sidecar（Python Flask on :${SIDECAR_PORT}）
+    {
+      name: 'fairprice-iv-sidecar',
+      script: './bin/start-iv-sidecar.sh',
+      cwd: '${APP_DIR}',
+      interpreter: '/bin/bash',
+      autorestart: true,
+      watch: false,
+      max_restarts: 5,
+      min_uptime: '10s',
+      restart_delay: 3000,
+    },
+
     // ── 每日資料庫備份（台灣時間 22:00，保留 7 天）
     {
       name: 'fairprice-db-backup',
@@ -694,17 +741,6 @@ ${telegram_apps}
         DB_PASSWORD: '${DB_PASSWORD:-}',
       },
       cron_restart: '0 22 * * *',
-      autorestart: false,
-      watch: false,
-    },
-
-    // ── 期權歷史快照（UTC 20:30 週一至五 = 美東 16:30 盤中）
-    {
-      name: 'fairprice-options-collector',
-      script: 'scripts/options_collector.py',
-      cwd: '${APP_DIR}',
-      interpreter: 'python3',
-      cron_restart: '30 20 * * 1-5',
       autorestart: false,
       watch: false,
     },
@@ -850,7 +886,7 @@ phase10_pm2() {
   step "pm2 服務啟動"
 
   # 停止舊的 fairprice 相關 process（若存在）
-  for proc in fairprice-rails fairprice-vite ouou-pre-market ouou-telegram-bot fairprice-db-backup; do
+  for proc in fairprice-rails fairprice-vite fairprice-iv-sidecar ouou-pre-market ouou-telegram-bot fairprice-db-backup; do
     pm2 delete "$proc" &>/dev/null || true
   done
 
@@ -863,14 +899,14 @@ phase10_pm2() {
   # 開機自啟
   echo ""
   if $HAS_SYSTEMD; then
+    warn "設定 pm2 開機自啟需要 sudo，請手動執行以下指令："
+    echo ""
     local node_path
     node_path="$(dirname "$(which node)")"
     local pm2_bin
     pm2_bin="$(which pm2)"
-    info "設定 pm2 開機自啟（systemd）..."
-    sudo env "PATH=$PATH:${node_path}" "${pm2_bin}" startup systemd \
-      -u "${INSTALL_USER}" --hp "${HOME_DIR}"
-    ok "pm2 開機自啟設定完成（WSL 重啟後服務自動恢復）"
+    echo -e "  ${BOLD}sudo env \"PATH=\$PATH:${node_path}\" ${pm2_bin} startup systemd -u ${INSTALL_USER} --hp ${HOME_DIR}${NC}"
+    echo ""
   else
     # 無 systemd：.bashrc hook
     if ! grep -q 'pm2 resurrect' "${HOME_DIR}/.bashrc" 2>/dev/null; then
@@ -886,37 +922,6 @@ BASHRC_PM2
     warn "無 systemd：開新 WSL terminal 時 pm2 會自動恢復服務"
     warn "建議在 /etc/wsl.conf 加入 [boot] systemd=true 以取得完整開機自啟支援"
   fi
-}
-
-
-# ============================================================
-# PHASE 10b：期權歷史資料初始抓取
-# ============================================================
-phase10b_options_backfill() {
-  step "期權歷史快照初始抓取"
-
-  # .env 已在 phase7 export，DATABASE_URL 可用
-  if ! command -v python3 &>/dev/null; then
-    warn "python3 未找到，跳過期權初始資料抓取"
-    return
-  fi
-
-  info "抓取追蹤標的當前期權鏈（--force 跳過盤中時間限制）..."
-  info "（此步驟需 CBOE / yfinance 連線，約需 30-120 秒）"
-
-  local log_file
-  log_file="$(mktemp)"
-
-  if python3 scripts/options_collector.py --force > "$log_file" 2>&1; then
-    local rows
-    rows=$(tail -5 "$log_file" | awk -F'upserted ' '/upserted/{sum+=$2} END{print sum+0}')
-    ok "期權初始快照完成（共 ${rows} 筆合約寫入資料庫）"
-  else
-    warn "期權初始資料抓取失敗（非阻斷性），安裝繼續"
-    warn "可稍後手動執行：python3 scripts/options_collector.py --force"
-    tail -5 "$log_file" | while read -r line; do warn "  $line"; done
-  fi
-  rm -f "$log_file"
 }
 
 # ============================================================
@@ -972,6 +977,7 @@ phase12_summary() {
   echo "  ║  pm2 list                  查看服務狀態          ║"
   echo "  ║  pm2 logs fairprice-rails  Rails log             ║"
   echo "  ║  pm2 logs fairprice-vite   Vite log              ║"
+  echo "  ║  pm2 logs fairprice-iv-sidecar  IV log           ║"
   echo "  ╠══════════════════════════════════════════════════╣"
   echo "  ║  資料庫備份：每天 22:00 自動執行                 ║"
   printf "  ║  備份位置：${CYAN}~/fairprice-backups/${GREEN}${BOLD}                  ║\n"
@@ -999,6 +1005,7 @@ main() {
   phase1_system_deps
   phase2_ruby
   phase3_nodejs
+  phase3b_python_sidecar
   phase4_env
   phase5_master_key
   phase6_deps
@@ -1006,7 +1013,6 @@ main() {
   phase8_fix_paths
   phase9_build_assets
   phase10_pm2
-  phase10b_options_backfill
   phase11_health_check
   phase12_summary
 }
