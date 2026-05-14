@@ -90,15 +90,41 @@ class Api::IvAnalysisController < ApplicationController
 
     # Parallel live price + IV fetch (HTTP only — no AR inside threads)
     live_prices = {}
-    watched.map { |wt|
-      Thread.new {
-        begin
-          [wt.ticker, IvSidecarService.fetch_atm_iv(wt.ticker)]
-        rescue StandardError
-          [wt.ticker, nil]
-        end
-      }
-    }.each { |t| r = t.value; live_prices[r[0]] = r[1] }
+    hv_ranks    = {}
+    threads = watched.flat_map { |wt|
+      [
+        Thread.new {
+          begin
+            [:live, wt.ticker, IvSidecarService.fetch_atm_iv(wt.ticker)]
+          rescue StandardError
+            [:live, wt.ticker, nil]
+          end
+        },
+        Thread.new {
+          begin
+            [:hv, wt.ticker, IvRankService.new(wt.ticker).call]
+          rescue StandardError
+            [:hv, wt.ticker, nil]
+          end
+        },
+        Thread.new {
+          begin
+            [:skew, wt.ticker, IvSidecarService.fetch_skew(wt.ticker)]
+          rescue StandardError
+            [:skew, wt.ticker, nil]
+          end
+        }
+      ]
+    }
+    skew_data = {}
+    threads.each do |t|
+      type, ticker, result = t.value
+      case type
+      when :live  then live_prices[ticker] = result
+      when :hv    then hv_ranks[ticker]    = result
+      when :skew  then skew_data[ticker]   = result
+      end
+    end
 
     tickers = watched.map do |wt|
       snaps          = IvDailySnapshot.for_ticker(wt.ticker).ordered
@@ -118,6 +144,15 @@ class Api::IvAnalysisController < ApplicationController
         ivp_1y = stats.ivp_1y
         ivr_2y = stats.ivr_2y
         ivp_2y = stats.ivp_2y
+        # Fallback to stored query values when live calculation lacks history
+        if ivr_1y.nil? && latest_query
+          ivr_1y = latest_query.ivr_1y
+          ivp_1y = latest_query.ivp_1y
+          ivr_2y = latest_query.ivr_2y
+          ivp_2y = latest_query.ivp_2y
+        end
+        # Last resort: HV Rank from IvRankService (Yahoo Finance 1y HV percentile)
+        ivr_1y ||= hv_ranks.dig(wt.ticker, :iv_rank)
       elsif latest_query
         ivr_1y = latest_query.ivr_1y
         ivp_1y = latest_query.ivp_1y
@@ -145,6 +180,9 @@ class Api::IvAnalysisController < ApplicationController
       live_price = live ? live[:current_price].to_f : latest_query&.current_price.to_f
       live_iv    = live ? live[:atm_iv].to_f        : latest_query&.iv.to_f
 
+      skew = skew_data[wt.ticker]
+      # Skew rank: prefer stored history, fallback to live skew (no rank when <5 days)
+      today_skew = SkewRankDaily.for_ticker(wt.ticker).ordered.last
       {
         ticker:          wt.ticker,
         added_at:        wt.added_at,
@@ -164,7 +202,11 @@ class Api::IvAnalysisController < ApplicationController
         expiry_date:     latest_query&.expiry_date,
         option_type:     latest_query&.option_type,
         live_price:      live_price,
-        live_iv:         live_iv
+        live_iv:         live_iv,
+        skew_pts:        skew ? skew[:skew_pts] : today_skew&.skew_pts,
+        skew_rank:       today_skew&.skew_rank,
+        put_iv_025:      skew ? skew[:put_iv_025] : today_skew&.put_iv_025,
+        call_iv_025:     skew ? skew[:call_iv_025] : today_skew&.call_iv_025
       }
     end
 

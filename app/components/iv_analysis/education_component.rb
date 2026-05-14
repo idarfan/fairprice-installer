@@ -11,17 +11,65 @@ class IvAnalysis::EducationComponent < ApplicationComponent
       chart_section
       vega_vanna_section
       key_takeaways
+      chain_glossary_section
     end
     render_chart_script
+    render_chain_tooltip_script
+    render_tts_script
   end
 
   private
 
   def section_header
     div(class: "border-b border-gray-200 pb-4") do
-      h2(class: "text-lg font-bold text-gray-900") { plain "隱含波動率（IV）完整說明" }
-      p(class: "mt-1 text-sm text-gray-500") do
-        plain "交易觀念為主，以 Black–Scholes 近似公式說明 IV 對期權價格與 Delta 的統治性影響。"
+      div(class: "flex items-start justify-between gap-3 flex-wrap") do
+        div do
+          h2(class: "text-lg font-bold text-gray-900") { plain "隱含波動率（IV）完整說明" }
+          p(class: "mt-1 text-sm text-gray-500") do
+            plain "交易觀念為主，以 Black–Scholes 近似公式說明 IV 對期權價格與 Delta 的統治性影響。"
+          end
+        end
+        div(class: "flex items-center gap-2 flex-shrink-0 mt-1") do
+          span(class: "text-gray-400 text-sm select-none", title: "音量") { plain "🔊" }
+          input(id: "tts-volume", type: "range", min: "0", max: "1", step: "0.05", value: "1.0",
+                class: "w-20 h-1 cursor-pointer", style: "accent-color:#3b82f6;", title: "音量調整")
+          button(id: "tts-settings-btn", type: "button",
+                 class: "flex items-center gap-1 px-2 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-500 hover:text-gray-700 text-xs transition-colors",
+                 title: "語音設定") do
+            raw '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" style="display:inline-block;vertical-align:middle"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z"/></svg>'.html_safe
+            plain " 語音設定"
+          end
+        end
+      end
+      div(id: "tts-settings-panel", class: "hidden mt-3 rounded-xl border border-blue-100 bg-blue-50 p-4") do
+        div(class: "flex items-center gap-2 mb-3") do
+          span(class: "text-sm") { plain "🎙️" }
+          h4(class: "text-xs font-bold text-gray-700") { plain "語音模型設定" }
+          p(class: "text-xs text-gray-400 ml-auto") { plain "設定儲存於瀏覽器，重新整理後保留" }
+        end
+        div(class: "grid sm:grid-cols-2 gap-3") do
+          div do
+            label(for: "tts-male-voice", class: "flex items-center gap-1 text-xs font-semibold text-blue-700 mb-1.5") do
+              plain "🔊 男聲模型（藍色按鈕）"
+            end
+            select(id: "tts-male-voice",
+                   class: "w-full text-xs border border-blue-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none") do
+              option(value: "") { plain "載入聲音中..." }
+            end
+          end
+          div do
+            label(for: "tts-female-voice", class: "flex items-center gap-1 text-xs font-semibold text-red-600 mb-1.5") do
+              plain "🔊 女聲模型（紅色按鈕）"
+            end
+            select(id: "tts-female-voice",
+                   class: "w-full text-xs border border-red-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 focus:outline-none") do
+              option(value: "") { plain "載入聲音中..." }
+            end
+          end
+        end
+        p(class: "text-xs text-gray-400 mt-2") do
+          plain "* 可用聲音取決於您的瀏覽器與作業系統。Chrome 推薦：Google US English"
+        end
       end
     end
   end
@@ -130,13 +178,30 @@ class IvAnalysis::EducationComponent < ApplicationComponent
     end
   end
 
+  def tts_speaker_btn(text, gender)
+    color    = gender == "male" ? "#3b82f6" : "#ef4444"
+    label    = gender == "male" ? "男聲朗讀" : "女聲朗讀"
+    ml_style = gender == "female" ? "margin-left:20px;" : ""
+    button(type: "button",
+           class: "tts-btn inline-flex items-center justify-center flex-shrink-0 transition-transform duration-100 hover:scale-125 active:scale-95",
+           style: "color:#{color}; background:none; border:none; padding:4px 5px; cursor:pointer; line-height:1; #{ml_style}",
+           data: { tts_text: text, tts_gender: gender },
+           title: label) do
+      raw '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="20" height="20" style="display:block"><path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"/></svg>'.html_safe
+    end
+  end
+
   def symbol_card(sym, color, name_zh, name_en, unit, desc)
     div(class: "rounded-lg border border-gray-200 bg-gray-50 p-3.5") do
       div(class: "flex items-start gap-2.5 mb-2") do
         span(style: "font-size:1.4rem; font-weight:700; font-style:italic; color:#{color}; line-height:1.1; flex-shrink:0") { plain sym }
         div(class: "flex-1 min-w-0") do
           p(class: "text-xs font-bold text-gray-800 leading-tight") { plain name_zh }
-          p(class: "text-xs text-gray-400 leading-tight mt-0.5") { plain name_en }
+          div(class: "flex items-center gap-0.5 mt-0.5") do
+            p(class: "text-xs text-gray-400 leading-tight") { plain name_en }
+            tts_speaker_btn(name_en, "male")
+            tts_speaker_btn(name_en, "female")
+          end
         end
         span(class: "text-xs rounded-full px-2 py-0.5 bg-white border border-gray-200 text-gray-500 whitespace-nowrap flex-shrink-0",
              style: "font-size:0.65rem") { plain unit }
@@ -288,13 +353,44 @@ class IvAnalysis::EducationComponent < ApplicationComponent
         end
       end
 
-      # Screenshot
+      # Screenshot with interactive column tooltips
       div(class: "p-4") do
-        img(
-          src:   "/images/options_chain_example.png",
-          alt:   "Barchart 選擇權鏈截圖",
-          class: "w-full rounded-lg border border-gray-200 shadow-sm"
-        )
+        p(class: "text-xs text-gray-400 mb-2") { plain "— 滑鼠移到任一欄位可查看說明" }
+        div(id: "barchart-img-container",
+            class: "relative rounded-lg border border-gray-200 shadow-sm overflow-hidden") do
+          img(
+            src:   "/images/options_chain_example.png",
+            alt:   "Barchart 選擇權鏈截圖",
+            class: "w-full block select-none",
+            style: "display:block"
+          )
+          div(id: "barchart-col-hl", class: "absolute inset-y-0 pointer-events-none",
+              style: "opacity:0;background:rgba(59,130,246,0.18);transition:left 0.06s,width 0.06s;")
+        end
+      end
+
+      # Barchart tooltip overlay (fixed, JS-managed)
+      div(id: "barchart-col-tooltip",
+          class: "hidden fixed z-50 rounded-xl shadow-2xl overflow-hidden select-none",
+          style: "max-width:320px;pointer-events:none;border:1px solid #e5e7eb;") do
+        div(id: "barchart-tt-hdr", class: "px-4 py-3 flex items-center gap-2") do
+          span(id: "barchart-tt-num",
+               class: "w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0 font-bold",
+               style: "font-size:0.82rem;background:rgba(0,0,0,0.25)")
+          div(class: "flex-1 min-w-0") do
+            p(id: "barchart-tt-en", class: "font-bold font-mono text-white leading-tight", style: "font-size:0.95rem")
+            p(id: "barchart-tt-zh", class: "mt-0.5", style: "font-size:0.82rem;color:rgba(255,255,255,0.85)")
+          end
+          span(id: "barchart-tt-ex",
+               class: "ml-auto font-mono rounded px-2 py-0.5 whitespace-nowrap flex-shrink-0",
+               style: "font-size:0.82rem;background:rgba(0,0,0,0.2);color:rgba(255,255,255,0.9)")
+        end
+        div(class: "bg-white px-4 py-3") do
+          p(id: "barchart-tt-sum",
+            class: "text-gray-800 font-medium leading-relaxed mb-2",
+            style: "font-size:0.85rem")
+          div(id: "barchart-tt-bul", class: "space-y-1")
+        end
       end
 
       # Annotation grid
@@ -337,7 +433,11 @@ class IvAnalysis::EducationComponent < ApplicationComponent
   def annotation_card(title, value, desc, border_class, value_class)
     div(class: "rounded-lg border p-3 #{border_class}") do
       p(class: "text-xs font-bold #{value_class} mb-0.5") { plain value }
-      p(class: "text-xs font-semibold text-gray-600 mb-1") { plain title }
+      div(class: "flex items-center gap-0.5 mb-1") do
+        p(class: "text-xs font-semibold text-gray-600") { plain title }
+        tts_speaker_btn(title, "male")
+        tts_speaker_btn(title, "female")
+      end
       p(class: "text-xs text-gray-600 leading-relaxed") { plain desc }
     end
   end
@@ -420,6 +520,517 @@ class IvAnalysis::EducationComponent < ApplicationComponent
       end
     end
   end
+
+
+  def chain_glossary_section
+    div(class: "mt-8 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden") do
+      # Header
+      div(class: "px-6 pt-6 pb-4 border-b border-gray-100") do
+        h2(class: "text-lg font-bold text-gray-900") { plain "📋 選擇權鏈欄位完整說明" }
+        p(class: "mt-1 text-sm text-gray-500") do
+          plain "對照下方截圖，每個編號說明一個欄位的意義，讓你查表時不再霧裡看花。"
+        end
+      end
+
+      # Screenshot with interactive hover tooltips per column
+      div(class: "px-6 pt-5 pb-3") do
+        p(class: "text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2") do
+          plain "實際範例（Puts 選擇權鏈）"
+          span(class: "ml-2 font-normal text-gray-400 normal-case") { plain "— 滑鼠移到任一欄可查看說明" }
+        end
+        div(id: "chain-img-container",
+            class: "relative rounded-lg border border-gray-200 shadow-sm overflow-hidden") do
+          img(
+            src:   "/images/options_chain_puts_example.png",
+            alt:   "選擇權 Puts 報價表截圖",
+            class: "w-full block select-none",
+            style: "display:block"
+          )
+          # column highlight overlay — JS manages left/width dynamically
+          div(id: "chain-col-hl", class: "absolute inset-y-0 pointer-events-none", style: "opacity:0;background:rgba(59,130,246,0.18);transition:left 0.06s,width 0.06s;")
+        end
+        p(class: "mt-2 text-xs text-gray-400") do
+          plain "① Strike　② Latest　③ Theor.　④ IV　⑤ Delta　⑥ Gamma　⑦ Theta　⑧ Vega　⑨ Rho　⑩ Volume　⑪ Open Int　⑫ Vol/OI　⑬ ITM Prob　⑭ Type"
+        end
+      end
+
+      # Fixed tooltip overlay — JS fills & positions on hover
+      div(id: "chain-col-tooltip",
+          class: "hidden fixed z-50 rounded-xl shadow-2xl overflow-hidden select-none",
+          style: "max-width:300px;pointer-events:none;border:1px solid #e5e7eb;") do
+        div(id: "chain-tt-hdr", class: "px-4 py-3 flex items-center gap-2") do
+          span(id: "chain-tt-num",
+               class: "w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0 font-bold",
+               style: "font-size:0.7rem;background:rgba(0,0,0,0.25)")
+          div(class: "flex-1 min-w-0") do
+            p(id: "chain-tt-en", class: "text-sm font-bold font-mono text-white leading-tight")
+            p(id: "chain-tt-zh", class: "text-xs mt-0.5", style: "color:rgba(255,255,255,0.8)")
+          end
+          span(id: "chain-tt-ex",
+               class: "ml-auto text-xs font-mono rounded px-2 py-0.5 whitespace-nowrap flex-shrink-0",
+               style: "background:rgba(0,0,0,0.2);color:rgba(255,255,255,0.9)")
+        end
+        div(class: "bg-white px-4 py-3") do
+          p(id: "chain-tt-sum", class: "text-gray-800 font-medium leading-relaxed mb-2", style: "font-size:0.85rem")
+          div(id: "chain-tt-bul", class: "space-y-1")
+        end
+      end
+
+      # Tipdoc cards grid
+      div(class: "px-6 pb-6") do
+        div(class: "mb-4 mt-2") do
+          h3(class: "text-sm font-semibold text-gray-700") { plain "各欄位說明" }
+        end
+
+        # Row 1: 價格 & IV (4 cards)
+        div(class: "mb-3") do
+          p(class: "text-xs font-bold text-blue-600 uppercase tracking-wide mb-2") { plain "💰 價格與波動率" }
+          div(class: "grid sm:grid-cols-2 xl:grid-cols-4 gap-3") do
+            tipdoc("①", "Strike", "行權價", "#3b82f6",
+              "你有權以此價格買（Call）或賣（Put）股票。",
+              "股價 > Strike → Call 在價內（ITM）
+股價 < Strike → Put 在價內（ITM）",
+              "$80.00")
+            tipdoc("②", "Latest", "最新成交價", "#3b82f6",
+              "這份期權在市場上最後成交的價格。",
+              "1 份合約 = 100 股
+實際費用 = Latest × 100 美元",
+              "$2.05")
+            tipdoc("③", "Theor.", "理論價值", "#8b5cf6",
+              "用 Black–Scholes 公式算出的「合理」價格。",
+              "Latest ≈ Theor. → 流動性好
+差距太大 → Bid/Ask 價差寬，小心",
+              "$2.05")
+            tipdoc("④", "IV", "隱含波動率", "#f59e0b",
+              "把 Latest 代入 B-S 模型「反推」出來的波動率預期。",
+              "IV 高 → 期權貴，賣方策略有利
+IV 低 → 期權便宜，買方策略有利
+IVR / IVP 就是衡量它的歷史位置",
+              "57.42%")
+          end
+        end
+
+        # Row 2: Greeks (5 cards)
+        div(class: "mb-3") do
+          p(class: "text-xs font-bold text-green-600 uppercase tracking-wide mb-2") { plain "🔢 Greeks（風險敏感度）" }
+          div(class: "grid sm:grid-cols-2 xl:grid-cols-3 gap-3") do
+            tipdoc("⑤", "Delta", "方向敏感度", "#10b981",
+              "股價每漲 $1，期權價格的理論變化（Put Delta 為負值）。",
+              "Call: 0 ~ 1（正值）
+Put: −1 ~ 0（負值）
+ATM ≈ ±0.50，也近似「到期在價內的機率」
+─ 計算範例（Delta = −0.4482 的 Put）─
+股價跌 $1 → −0.4482 × (−1) = 期權漲 +$0.4482
+股價漲 $1 → −0.4482 × (+1) = 期權跌 −$0.4482
+⚠ 注意：這是理論值（瞬間線性估計）
+實際還要考慮 Gamma（Delta 本身隨股價改變）
+Theta（時間侵蝕）及 Bid/Ask 價差
+股價大幅波動時誤差會更大",
+              "−0.4482")
+            tipdoc("⑥", "Gamma", "Delta 的加速度", "#10b981",
+              "股價每漲 $1，Delta 本身的變化量。",
+              "越接近到期 & ATM → Gamma 越大
+買方：方向對了會加速獲利
+賣方：要注意方向逆轉的風險",
+              "0.0094")
+            tipdoc("⑦", "Theta", "每日時間耗損", "#ef4444",
+              "期權每過一天，價值自動減少（即使股價完全沒動）。買方是受害者，賣方（你）是受益者。",
+              "買方受害：每天醒來，手上的期權就貶值一點點，即使股價沒動
+賣方受益範例：Short Put $14，現在市價 $1.00（純時間價值）
+今天 $1.00 → 明天 $0.97，帳面獲利 +$30
+後天 $0.94，再 +$30，以此類推直到歸零
+每天睡一覺起來，自動多賺一點
+越接近到期 Theta 越大，耗損加速，快到期 OTM 可能一夜變廢紙",
+              "−0.0408")
+            tipdoc("⑧", "Vega", "波動率敏感度", "#f59e0b",
+              "IV 每上升 1%，期權價值的理論變化。",
+              "正 Vega（買方）= IV 漲受益
+財報後 IV 崩潰 → Vega 陷阱
+方向做對了，IV 暴跌仍可能虧損",
+              "0.0972")
+            tipdoc("⑨", "Rho", "利率敏感度", "#6b7280",
+              "無風險利率每上升 1%，期權價值的變化。",
+              "日常交易中影響最小，可忽略
+只有持有 LEAPS（2 年以上長期期權）時才需注意",
+              "−0.0273")
+          end
+        end
+
+        # Row 3: 流動性 & 機率 (5 cards)
+        div do
+          p(class: "text-xs font-bold text-sky-600 uppercase tracking-wide mb-2") { plain "📊 成交量、流動性與機率" }
+          div(class: "grid sm:grid-cols-2 xl:grid-cols-3 gap-3") do
+            tipdoc("⑩", "Volume", "當日成交量", "#0ea5e9",
+              "今天共有多少份合約在市場上成交。",
+              "Volume 高 → 活絡，容易買賣
+Volume 低 → Bid/Ask 價差大，成本高",
+              "60")
+            tipdoc("⑪", "Open Int", "未平倉量", "#0ea5e9",
+              "目前市場上尚未結算的合約總量。",
+              "Open Int 大 → 流動性好，有足夠對手盤
+增加 → 有新倉位建立
+減少 → 有人平倉或到期",
+              "792")
+            tipdoc("⑫", "Vol/OI", "當日交投比", "#0ea5e9",
+              "Volume ÷ Open Interest。",
+              "比值高 → 今天動靜大，可能有大戶佈局
+是觀察異常活動的快速指標",
+              "0.08")
+            tipdoc("⑬", "ITM Prob", "到期價內機率", "#8b5cf6",
+              "到期時「處於價內」的估計機率，由 Delta 近似。",
+              "賣 CSP 常選 ITM Prob < 20% 的 Strike
+= 約 80% 的機率讓期權到期歸零
+勝率的直觀表達",
+              "18.21%")
+            tipdoc("⑭", "Type", "Call / Put 類型", "#64748b",
+              "標示這是看漲（Call）還是看跌（Put）合約。",
+              "Call → 有權以 Strike 買入股票
+Put → 有權以 Strike 賣出股票
+Wheel: 賣 Put（CSP）或賣 Call（CC）",
+              "Put")
+          end
+        end
+      end
+    end
+  end
+
+  def tipdoc(num, en_name, zh_name, accent, summary, bullets, example)
+    div(class: "rounded-lg bg-white",
+        style: "border: 1px solid #e5e7eb; border-left: 4px solid #{accent};") do
+      div(class: "p-3.5") do
+        div(class: "flex items-start justify-between gap-2 mb-2") do
+          div(class: "flex items-center gap-1.5") do
+            span(class: "inline-flex items-center justify-center w-5 h-5 rounded-full text-white text-xs font-bold flex-shrink-0",
+                 style: "background:#{accent}; font-size:0.65rem") { plain num }
+            div do
+              div(class: "flex items-center gap-0.5") do
+                p(class: "text-sm font-bold font-mono text-gray-900 leading-tight") { plain en_name }
+                tts_speaker_btn(en_name, "male")
+                tts_speaker_btn(en_name, "female")
+              end
+              p(class: "text-xs text-gray-500 mt-0.5") { plain zh_name }
+            end
+          end
+          span(class: "text-xs font-mono rounded px-1.5 py-0.5 bg-gray-100 text-gray-400 whitespace-nowrap flex-shrink-0",
+               style: "font-size:0.65rem") { plain example }
+        end
+        p(class: "text-xs text-gray-700 leading-relaxed mb-1.5") { plain summary }
+        div(class: "space-y-0.5") do
+          bullets.split("\n").each do |line|
+            p(class: "text-xs text-gray-500 leading-relaxed") do
+              span(class: "mr-1", style: "color:#{accent}") { plain "›" }
+              plain line
+            end
+          end
+        end
+      end
+    end
+  end
+
+
+  def gloss_group_label(title, subtitle)
+    div(class: "mt-5 mb-3") do
+      h3(class: "text-sm font-bold text-gray-800") { plain title }
+      p(class: "text-xs text-gray-500 mt-0.5") { plain subtitle }
+    end
+  end
+
+  def gloss_card(en_name, zh_name, accent_color, example, desc)
+    div(class: "rounded-lg bg-white overflow-hidden",
+        style: "border: 1px solid #e5e7eb; border-left: 4px solid #{accent_color};") do
+      div(class: "p-3.5 flex flex-col gap-2") do
+        div(class: "flex items-start justify-between gap-2") do
+          div do
+            div(class: "flex items-center gap-0.5") do
+              p(class: "text-base font-bold font-mono text-gray-900 leading-tight") { plain en_name }
+              tts_speaker_btn(en_name, "male")
+              tts_speaker_btn(en_name, "female")
+            end
+            p(class: "text-xs text-gray-500 mt-0.5") { plain zh_name }
+          end
+          span(class: "text-xs rounded px-1.5 py-0.5 bg-gray-100 text-gray-400 font-mono whitespace-nowrap flex-shrink-0",
+               style: "font-size:0.65rem") { plain example }
+        end
+        p(class: "text-xs text-gray-600 leading-relaxed") { plain desc }
+      end
+    end
+  end
+
+  def render_chain_tooltip_script
+    script do
+      raw <<~JS.html_safe
+        (function () {
+          var wrapper = document.getElementById('chain-img-container');
+          var tip     = document.getElementById('chain-col-tooltip');
+          var hl      = document.getElementById('chain-col-hl');
+          if (!wrapper || !tip || !hl) return;
+
+          var hdr = document.getElementById('chain-tt-hdr');
+          var num = document.getElementById('chain-tt-num');
+          var en  = document.getElementById('chain-tt-en');
+          var zh  = document.getElementById('chain-tt-zh');
+          var ex  = document.getElementById('chain-tt-ex');
+          var sm  = document.getElementById('chain-tt-sum');
+          var bl  = document.getElementById('chain-tt-bul');
+
+          // Column left-boundary percentages (derived from 1077px image pixel analysis)
+          var BOUNDS = [0, 8.3, 15.5, 22.5, 29.0, 35.3, 42.5, 49.0, 55.4, 62.2, 69.7, 77.7, 85.5, 93.0, 100];
+
+          var COLS = [
+            { num:'①', en:'Strike',   zh:'行權價',      color:'#3b82f6', example:'$80.00',
+              summary:'你有權以此價格買（Call）或賣（Put）股票。',
+              bullets:['股價 > Strike → Call 在價內（ITM）','股價 < Strike → Put 在價內（ITM）','反之稱為價外（OTM）'] },
+            { num:'②', en:'Latest',   zh:'最新成交價',   color:'#3b82f6', example:'$2.05',
+              summary:'這份期權在市場上最後成交的價格，即買入需付的費用。',
+              bullets:['1 份合約 = 100 股，費用 = Latest x 100 美元','流動性差時 Latest 可能遠離合理價','搭配 Theor. 確認定價是否合理'] },
+            { num:'③', en:'Theor.',   zh:'理論價值',     color:'#8b5cf6', example:'$2.05',
+              summary:'用 Black-Scholes 公式計算出來的「合理」期權價格。',
+              bullets:['Latest = Theor. 流動性好，可放心交易','差距大代表 Bid/Ask 價差寬，進出成本高','常與 Latest 比較，判斷當前定價是否合理'] },
+            { num:'④', en:'IV',       zh:'隱含波動率',   color:'#f59e0b', example:'57.42%',
+              summary:'把市場成交價代入 B-S 公式反推出的波動率預期。',
+              bullets:['IV 高期權貴，賣方策略（Wheel）有利','IV 低期權便宜，買方策略有利','IVR / IVP 正是衡量這個數字在歷史中的位置'] },
+            { num:'⑤', en:'Delta',    zh:'方向敏感度',   color:'#10b981', example:'-0.4482',
+              summary:'股價每漲 $1，期權價格的理論變化量（Put Delta 為負值）。',
+              bullets:[
+                'Call: 0~1（正值）；Put: \u22121~0（負值）',
+                'ATM \u2248 \u00b10.50，也近似「到期在價內的機率」',
+                '\u2500 計算範例（Delta = \u22120.4482 的 Put）\u2500',
+                '股價跌 $1 \u2192 \u22120.4482 \u00d7 (\u22121) = 期權漲 +$0.4482',
+                '股價漲 $1 \u2192 \u22120.4482 \u00d7 (+1) = 期權跌 \u2212$0.4482',
+                '\u26a0 理論值（瞬間線性估計）：實際還要考慮',
+                'Gamma（Delta 本身隨股價移動而改變）',
+                'Theta（時間流逝侵蝕價值）',
+                'Bid/Ask 價差 \u2014 股價大幅波動時誤差更大'
+              ] },
+            { num:'⑥', en:'Gamma',    zh:'Delta 加速度', color:'#10b981', example:'0.0094',
+              summary:'股價每漲 $1，Delta 本身的變化量。',
+              bullets:['越接近到期且接近 ATM，Gamma 越大','買方：方向對了，獲利會加速放大','賣方：方向逆轉時 Delta 快速擴大，風險上升'] },
+            { num:'⑦', en:'Theta',    zh:'每日時間耗損', color:'#ef4444', example:'-0.0408',
+              summary:'期權每過一天，價值自動減少（即使股價沒動）。買方受害，賣方（你）受益。',
+              bullets:['買方：每天醒來期權自動貶值，即使股價完全沒動','賣方範例：Short Put $14 市價 $1.00（純時間價值）','今天 $1.00 → 明天 $0.97（+$30）→ 後天 $0.94（再 +$30）','每天睡一覺起來自動多賺，直到歸零','越接近到期 Theta 越大，快到期 OTM 可能一夜變廢紙'] },
+            { num:'⑧', en:'Vega',     zh:'波動率敏感度', color:'#f59e0b', example:'0.0972',
+              summary:'IV 每上升 1%，期權價值的理論變化。',
+              bullets:['買方持有正 Vega：IV 漲受益、IV 跌受損','財報後 IV 崩潰（IV Crush）是正 Vega 的大陷阱','方向做對了，IV 暴跌仍可能讓期權虧損'] },
+            { num:'⑨', en:'Rho',      zh:'利率敏感度',   color:'#6b7280', example:'-0.0273',
+              summary:'無風險利率每上升 1%，期權價值的變化。',
+              bullets:['日常交易中影響最小，通常可忽略','持有 LEAPS 長期期權時才需注意','升息環境：Call 略漲，Put 略跌'] },
+            { num:'⑩', en:'Volume',   zh:'當日成交量',   color:'#0ea5e9', example:'60',
+              summary:'今天共有多少份合約在市場上成交。',
+              bullets:['Volume 高代表活絡，容易以合理價成交','Volume 低時 Bid/Ask 差大，實際成交成本高','搭配 Open Int 一起判斷市場熱度'] },
+            { num:'⑪', en:'Open Int', zh:'未平倉量',     color:'#0ea5e9', example:'792',
+              summary:'目前市場上尚未結算的合約總量。',
+              bullets:['大代表流動性好，有足夠對手盤','增加代表有新倉位建立，資金進場','減少代表有人平倉或合約到期結算'] },
+            { num:'⑫', en:'Vol/OI',   zh:'當日交投比',   color:'#0ea5e9', example:'0.08',
+              summary:'Volume 除以 Open Interest，衡量今日活躍程度。',
+              bullets:['比值突然偏高，可能有大戶或消息面在動','是觀察異常佈局的快速指標','正常情況下多在 0.05~0.2 之間'] },
+            { num:'⑬', en:'ITM Prob', zh:'到期價內機率', color:'#8b5cf6', example:'18.21%',
+              summary:'到期時「處於價內」的估計機率，由 Delta 近似計算。',
+              bullets:['賣 CSP 常選 ITM Prob < 20% 的 Strike','約 80% 機率讓期權到期歸零，收全額權利金','直接以機率角度判斷勝率，最直觀'] },
+            { num:'⑭', en:'Type',     zh:'合約類型',     color:'#64748b', example:'Put',
+              summary:'標示這份合約是看漲（Call）還是看跌（Put）。',
+              bullets:['Call：有權以 Strike 買入股票','Put：有權以 Strike 賣出股票','Wheel：賣 Put（CSP）被行使後再賣 Covered Call'] }
+          ];
+
+          var lastCol = -1;
+
+          function posTip(e) {
+            var x = e.clientX + 20, y = e.clientY - 20;
+            var tw = tip.offsetWidth || 300, th = tip.offsetHeight || 160;
+            if (x + tw > window.innerWidth  - 12) x = e.clientX - tw - 20;
+            if (y + th > window.innerHeight - 12) y = window.innerHeight - th - 12;
+            if (y < 8) y = 8;
+            tip.style.left = x + 'px';
+            tip.style.top  = y + 'px';
+          }
+
+          function fillTip(col) {
+            hdr.style.background = col.color;
+            num.textContent = col.num;
+            en.textContent  = col.en;
+            zh.textContent  = col.zh;
+            ex.textContent  = col.example;
+            sm.textContent  = col.summary;
+            bl.innerHTML = col.bullets.map(function(b) {
+              return '<p style="display:flex;gap:4px;font-size:0.85rem;color:#6b7280;line-height:1.5">' +
+                '<span style="color:' + col.color + ';flex-shrink:0">›</span>' + b + '</p>';
+            }).join('');
+          }
+
+          // Listen on the container — always receives events regardless of child opacity
+          wrapper.style.cursor = 'crosshair';
+
+          wrapper.addEventListener('mousemove', function(e) {
+            var rect  = wrapper.getBoundingClientRect();
+            var xPct  = (e.clientX - rect.left) / rect.width * 100;
+            var col   = -1;
+            for (var i = 0; i < BOUNDS.length - 1; i++) {
+              if (xPct >= BOUNDS[i] && xPct < BOUNDS[i + 1]) { col = i; break; }
+            }
+            if (col < 0) {
+              tip.classList.add('hidden');
+              hl.style.opacity = '0';
+              lastCol = -1;
+              return;
+            }
+            // Update column highlight
+            hl.style.left    = BOUNDS[col] + '%';
+            hl.style.width   = (BOUNDS[col + 1] - BOUNDS[col]) + '%';
+            hl.style.opacity = '1';
+            // Refill only when column changes
+            if (col !== lastCol) { fillTip(COLS[col]); lastCol = col; }
+            tip.classList.remove('hidden');
+            posTip(e);
+          });
+
+          wrapper.addEventListener('mouseleave', function() {
+            tip.classList.add('hidden');
+            hl.style.opacity = '0';
+            lastCol = -1;
+          });
+        })();
+
+        // ── Barchart (Calls+Puts) image tooltip ──
+        (function () {
+          var wrapper = document.getElementById('barchart-img-container');
+          var tip     = document.getElementById('barchart-col-tooltip');
+          var hl      = document.getElementById('barchart-col-hl');
+          if (!wrapper || !tip || !hl) return;
+
+          var hdr = document.getElementById('barchart-tt-hdr');
+          var num = document.getElementById('barchart-tt-num');
+          var en  = document.getElementById('barchart-tt-en');
+          var zh  = document.getElementById('barchart-tt-zh');
+          var ex  = document.getElementById('barchart-tt-ex');
+          var sm  = document.getElementById('barchart-tt-sum');
+          var bl  = document.getElementById('barchart-tt-bul');
+
+          // Column boundaries (%) — derived from 1631px image pixel analysis
+          // 20 columns: Links | Type | Latest | Bid | Ask | Change | Volume | Open Int | IV | Last Trade
+          //              | Strike |
+          //             Type | Latest | Bid | Ask | Change | Volume | Open Int | IV | Last Trade (Puts)
+          var BOUNDS = [0, 3.7, 9.2, 17.1, 21.5, 26.4, 32.0, 39.5, 45.5, 49.6, 53.8, 58.7, 62.1, 65.8, 69.7, 73.5, 77.0, 81.0, 88.7, 92.0, 100];
+
+          var COLS = [
+            { num:'①', en:'Links', zh:'圖表連結', color:'#64748b', example:'🔗',
+              summary:'每列左側的圖示連結，點擊可直接進入該合約的走勢圖或下單介面。',
+              bullets:['Click → 查看單一期權的歷史 IV 走勢圖', '方便快速進入 Calls 或 Puts 的交易頁面'] },
+            { num:'②', en:'Type', zh:'合約類型（Calls）', color:'#3b82f6', example:'C',
+              summary:'C = Call（買權），表示這是 Calls 那一側的合約。',
+              bullets:['Call 給你「以 Strike 買入股票」的權利', 'Barchart 左半部全為 Call 合約', '搭配 Strike 判斷是否在價內（ITM）'] },
+            { num:'③', en:'Latest', zh:'最新成交價（Call）', color:'#3b82f6', example:'$2.05',
+              summary:'這份 Call 期權最近一筆成交的市場價格。',
+              bullets:['1 合約 = 100 股，實際費用 = Latest × 100', '流動性差時 Latest 可能遠離中間報價', '搭配 Bid/Ask 確認成交是否合理'] },
+            { num:'④', en:'Bid', zh:'買入出價（Call）', color:'#3b82f6', example:'$1.90',
+              summary:'市場上最高的買入報價（做市商願意以此價格收購你的合約）。',
+              bullets:['賣出合約時通常以 Bid 成交', 'Bid 越接近 Ask 代表流動性越好', 'Bid/Ask 差大時實際進出成本高'] },
+            { num:'⑤', en:'Ask', zh:'賣出要價（Call）', color:'#3b82f6', example:'$2.10',
+              summary:'市場上最低的賣出報價（需支付此價格才能買入合約）。',
+              bullets:['買入合約時通常以 Ask 成交', '中間價 Mid = (Bid + Ask) / 2，可嘗試掛在此', 'Ask 遠高於 Bid → 流動性差，避免市價單'] },
+            { num:'⑥', en:'Change', zh:'價格變動（Call）', color:'#f59e0b', example:'+$0.15',
+              summary:'相對前一交易日收盤價的漲跌幅。',
+              bullets:['正值（綠色）= Call 漲價，隱含 IV 或股價走高', '負值（紅色）= Call 跌價，股價下跌或 IV 壓縮', '觀察 Change 可判斷市場方向情緒'] },
+            { num:'⑦', en:'Volume', zh:'當日成交量（Call）', color:'#0ea5e9', example:'230',
+              summary:'今日這份 Call 合約的成交總量（合約數）。',
+              bullets:['Volume 高 → 市場活躍，Bid/Ask 差窄', 'Volume 低 → 流動性差，避免大量進出', '突然大量 Volume → 可能有機構佈局或消息面'] },
+            { num:'⑧', en:'Open Int', zh:'未平倉量（Call）', color:'#0ea5e9', example:'1,820',
+              summary:'目前市場上這份 Call 合約尚未結算的總量。',
+              bullets:['Open Int 大 → 流動性好，容易找到對手盤', '搭配 Volume 一起看：Volume 遠大於 OI 代表今天進了大量新倉', '減少代表有人平倉或合約到期'] },
+            { num:'⑨', en:'IV', zh:'隱含波動率（Call）', color:'#f59e0b', example:'58.3%',
+              summary:'這份 Call 合約的隱含波動率，由市場價格反推而來。',
+              bullets:['IV 高 → 合約偏貴，賣 Covered Call 有利', 'ATM 附近 IV 最低；深 ITM / OTM 的 IV 會偏高（IV Skew）', '與 HV 比較：IV > HV → 賣方有優勢'] },
+            { num:'⑩', en:'Last Trade', zh:'最後成交時間（Call）', color:'#64748b', example:'05/13 10:32',
+              summary:'這份 Call 合約最近一次成交的日期與時間。',
+              bullets:['時間久遠代表流動性差、很久沒有成交', '配合 Volume 判斷：Low Volume + 舊 Last Trade = 避開', '活絡合約通常當天就有多筆成交'] },
+            { num:'⑪', en:'Strike', zh:'行權價（中央軸）', color:'#7c3aed', example:'$80.00',
+              summary:'這列期權的行權價，是 Calls 與 Puts 共用的核心基準價格。',
+              bullets:['股價 > Strike → Call ITM（有內在價值）', '股價 < Strike → Put ITM（有內在價值）', 'ATM Strike 是波動率最集中的區域，也是 Wheel 策略最常選擇的位置'] },
+            { num:'⑫', en:'Type', zh:'合約類型（Puts）', color:'#ef4444', example:'P',
+              summary:'P = Put（賣權），表示這是 Puts 那一側的合約。',
+              bullets:['Put 給你「以 Strike 賣出股票」的權利', 'Barchart 右半部全為 Put 合約', 'Wheel 的 CSP（現金擔保賣權）即是賣出 Put'] },
+            { num:'⑬', en:'Latest', zh:'最新成交價（Put）', color:'#ef4444', example:'$1.85',
+              summary:'這份 Put 期權最近一筆成交的市場價格。',
+              bullets:['Put Latest 通常隨股價下跌而上漲', '1 合約 = 100 股，Wheel 收到的權利金 = Latest × 100', '流動性差時避免市價單'] },
+            { num:'⑭', en:'Bid', zh:'買入出價（Put）', color:'#ef4444', example:'$1.75',
+              summary:'市場最高買入報價，賣出 Put 時通常以此成交。',
+              bullets:['賣 CSP 時以 Bid 成交，實際收到的權利金', 'Bid/Ask 差越小越好，進出成本低', '可嘗試掛 Mid 價，通常也能成交'] },
+            { num:'⑮', en:'Ask', zh:'賣出要價（Put）', color:'#ef4444', example:'$1.95',
+              summary:'市場最低賣出報價，買入 Put 時需支付此價格。',
+              bullets:['保護性買 Put（Protective Put）用 Ask 進場', 'Bid/Ask 差大的 Put → 流動性差，避免買入', 'Mid = (Bid+Ask)/2 是最佳掛單目標'] },
+            { num:'⑯', en:'Change', zh:'價格變動（Put）', color:'#f59e0b', example:'-$0.10',
+              summary:'Put 合約相對前一交易日的價格變化。',
+              bullets:['股價下跌時 Put 通常漲價（負 Change 代表股價漲）', '觀察 Put Change 可判斷市場對下行風險的憂慮程度', '財報前後 Put Change 常非常劇烈'] },
+            { num:'⑰', en:'Volume', zh:'當日成交量（Put）', color:'#0ea5e9', example:'520',
+              summary:'今日這份 Put 合約的成交總量。',
+              bullets:['Put Volume 暴增可能反映大戶買保護或押注下跌', '與 Call Volume 比較：Put/Call Ratio 是市場情緒指標', 'Wheel 賣 CSP 選擇 Volume > 100 的合約較安全'] },
+            { num:'⑱', en:'Open Int', zh:'未平倉量（Put）', color:'#0ea5e9', example:'3,240',
+              summary:'這份 Put 合約目前未平倉的總合約數。',
+              bullets:['Open Int 大 → 流動性好，容易以合理價成交', '選 CSP 執行價時常參考 Open Int 找支撐位', '大量 Open Int 聚集的 Strike 常形成支撐或阻力'] },
+            { num:'⑲', en:'IV', zh:'隱含波動率（Put）', color:'#f59e0b', example:'61.2%',
+              summary:'這份 Put 的隱含波動率，反映市場對下行風險的定價。',
+              bullets:['Put IV 通常略高於 Call IV（Skew 效應）', 'Put IV 越高 → CSP 權利金越豐厚', 'IV 高位（IVR > 60%）賣 Put 是 Wheel 黃金時機'] },
+            { num:'⑳', en:'Last Trade', zh:'最後成交時間（Put）', color:'#64748b', example:'05/13 09:45',
+              summary:'這份 Put 合約最近一次成交的時間。',
+              bullets:['時間久遠 = 流動性差，賣出時難找買家', 'Wheel 選 CSP 要選當天有成交紀錄的 Strike', '配合 Volume / Open Int 三項合一判斷流動性'] }
+          ];
+
+          var lastCol = -1;
+
+          function posTip2(e) {
+            var x = e.clientX + 20, y = e.clientY - 20;
+            var tw = tip.offsetWidth || 320, th = tip.offsetHeight || 180;
+            if (x + tw > window.innerWidth  - 12) x = e.clientX - tw - 20;
+            if (y + th > window.innerHeight - 12) y = window.innerHeight - th - 12;
+            if (y < 8) y = 8;
+            tip.style.left = x + 'px';
+            tip.style.top  = y + 'px';
+          }
+
+          function fillTip2(col) {
+            hdr.style.background = col.color;
+            num.textContent = col.num;
+            en.textContent  = col.en;
+            zh.textContent  = col.zh;
+            ex.textContent  = col.example;
+            sm.textContent  = col.summary;
+            bl.innerHTML = col.bullets.map(function(b) {
+              return '<p style="display:flex;gap:4px;font-size:0.85rem;color:#6b7280;line-height:1.5">' +
+                '<span style="color:' + col.color + ';flex-shrink:0">›</span>' + b + '</p>';
+            }).join('');
+          }
+
+          wrapper.style.cursor = 'crosshair';
+
+          wrapper.addEventListener('mousemove', function(e) {
+            var rect = wrapper.getBoundingClientRect();
+            var xPct = (e.clientX - rect.left) / rect.width * 100;
+            var col  = -1;
+            for (var i = 0; i < BOUNDS.length - 1; i++) {
+              if (xPct >= BOUNDS[i] && xPct < BOUNDS[i + 1]) { col = i; break; }
+            }
+            if (col < 0) {
+              tip.classList.add('hidden');
+              hl.style.opacity = '0';
+              lastCol = -1;
+              return;
+            }
+            hl.style.left    = BOUNDS[col] + '%';
+            hl.style.width   = (BOUNDS[col + 1] - BOUNDS[col]) + '%';
+            hl.style.opacity = '1';
+            if (col !== lastCol) { fillTip2(COLS[col]); lastCol = col; }
+            tip.classList.remove('hidden');
+            posTip2(e);
+          });
+
+          wrapper.addEventListener('mouseleave', function() {
+            tip.classList.add('hidden');
+            hl.style.opacity = '0';
+            lastCol = -1;
+          });
+        })();
+      JS
+    end
+  end
+
 
   def render_chart_script
     script do
@@ -517,4 +1128,112 @@ class IvAnalysis::EducationComponent < ApplicationComponent
       JS
     end
   end
+  def render_tts_script
+    script do
+      raw <<~JS.html_safe
+        (function () {
+          var TTS_URL     = 'http://127.0.0.1:5051/tts';
+          var currentAudio = null;
+
+          var volEl    = document.getElementById('tts-volume');
+          var settBtn  = document.getElementById('tts-settings-btn');
+          var settPane = document.getElementById('tts-settings-panel');
+          var maleEl   = document.getElementById('tts-male-voice');
+          var femaleEl = document.getElementById('tts-female-voice');
+
+          // ── Volume ────────────────────────────────────────────────────
+          var vol = parseFloat(localStorage.getItem('tts_volume') || '1.0');
+          if (volEl) {
+            volEl.value = vol;
+            volEl.addEventListener('input', function () {
+              vol = parseFloat(this.value);
+              localStorage.setItem('tts_volume', String(vol));
+            });
+          }
+
+          // ── Settings panel ─────────────────────────────────────────────
+          if (settBtn && settPane) {
+            settBtn.addEventListener('click', function () {
+              settPane.classList.toggle('hidden');
+            });
+          }
+
+          // ── Kokoro voice lists ────────────────────────────────────────
+          var MALE_VOICES = [
+            ['am_michael', 'Michael（美式男聲）'],
+            ['am_adam',    'Adam（美式男聲）'],
+            ['am_echo',    'Echo（美式男聲）'],
+            ['am_eric',    'Eric（美式男聲）'],
+            ['am_liam',    'Liam（美式男聲）'],
+            ['am_onyx',    'Onyx（美式男聲）'],
+            ['am_puck',    'Puck（美式男聲）'],
+            ['bm_george',  'George（英式男聲）'],
+            ['bm_daniel',  'Daniel（英式男聲）'],
+            ['bm_fable',   'Fable（英式男聲）'],
+          ];
+          var FEMALE_VOICES = [
+            ['af_sarah',   'Sarah（美式女聲）'],
+            ['af_heart',   'Heart（美式女聲）'],
+            ['af_bella',   'Bella（美式女聲）'],
+            ['af_nicole',  'Nicole（美式女聲）'],
+            ['af_nova',    'Nova（美式女聲）'],
+            ['af_sky',     'Sky（美式女聲）'],
+            ['af_jessica', 'Jessica（美式女聲）'],
+            ['bf_emma',    'Emma（英式女聲）'],
+            ['bf_alice',   'Alice（英式女聲）'],
+            ['bf_lily',    'Lily（英式女聲）'],
+          ];
+
+          var maleVoice  = localStorage.getItem('kokoro_male_voice')  || 'am_michael';
+          var femaleVoice = localStorage.getItem('kokoro_female_voice') || 'af_sarah';
+
+          function populate(sel, voices, current) {
+            if (!sel) return;
+            sel.innerHTML = '';
+            voices.forEach(function (v) {
+              sel.appendChild(new Option(v[1], v[0], false, v[0] === current));
+            });
+          }
+          populate(maleEl,   MALE_VOICES,   maleVoice);
+          populate(femaleEl, FEMALE_VOICES, femaleVoice);
+
+          if (maleEl) {
+            maleEl.addEventListener('change', function () {
+              maleVoice = this.value;
+              localStorage.setItem('kokoro_male_voice', maleVoice);
+            });
+          }
+          if (femaleEl) {
+            femaleEl.addEventListener('change', function () {
+              femaleVoice = this.value;
+              localStorage.setItem('kokoro_female_voice', femaleVoice);
+            });
+          }
+
+          // ── Speak via Kokoro local server ─────────────────────────────
+          function speak(text, gender) {
+            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+            var voice = gender === 'male' ? maleVoice : femaleVoice;
+            var url   = TTS_URL + '?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
+            var audio = new Audio(url);
+            audio.volume = vol;
+            audio.play().catch(function (e) {
+              console.warn('Kokoro TTS unavailable:', e.message,
+                '— make sure pm2 kokoro-tts is running on port 5051');
+            });
+            currentAudio = audio;
+          }
+
+          // ── Wire TTS buttons ──────────────────────────────────────────
+          document.querySelectorAll('.tts-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+              e.stopPropagation();
+              speak(btn.dataset.ttsText, btn.dataset.ttsGender);
+            });
+          });
+        })();
+      JS
+    end
+  end
+
 end

@@ -10,6 +10,7 @@ class IvAnalysis::PageComponent < ApplicationComponent
         end
       end
 
+      render IvAnalysis::DashboardComponent.new
       render IvAnalysis::QueryFormComponent.new
       render IvAnalysis::ResultComponent.new
       render IvAnalysis::WatchlistComponent.new
@@ -288,10 +289,320 @@ class IvAnalysis::PageComponent < ApplicationComponent
             excellent:    '充足'
           };
 
+          // ── Skew tooltip definitions ──────────────────────────────────
+          var SKEW_TIPS = {
+            put:  'Put IV (25δ)\\n\\n價外 Put 的隱含波動率。\\n數值越高代表市場願意付更多錢買下跌保護，\\n反映偏空情緒或避險需求強烈。',
+            call: 'Call IV (25δ)\\n\\n價外 Call 的隱含波動率。\\n數值越高代表市場願意付更多溢價買上漲曝險，\\n反映偏多情緒或投機需求旺盛。',
+            skew: 'Skew (pts)\\n\\nPut IV 減去 Call IV 的差值（單位：百分點）。\\n正值(+) → Put 比 Call 貴，市場偏空/避險。\\n負值(-) → Call 比 Put 貴，市場偏多/投機。',
+            rank: 'Skew Rank\\n\\n當前 Skew 在過去歷史中的相對位置。\\n100 = 最偏空（Put 溢價最高）\\n0 = 最偏多（Call 溢價最高）\\n需累積≥5天資料才顯示指針。'
+          };
+
+          function initTooltip() {
+            var tip = document.createElement('div');
+            tip.id = 'iv-global-tip';
+            tip.style.cssText = [
+              'position:fixed', 'z-index:9999', 'display:none',
+              'max-width:240px', 'background:#1e293b', 'color:#e2e8f0',
+              'font-size:12px', 'line-height:1.55', 'white-space:pre-line',
+              'padding:8px 10px', 'border-radius:8px',
+              'box-shadow:0 4px 16px rgba(0,0,0,.35)',
+              'pointer-events:none', 'transition:opacity .15s'
+            ].join(';');
+            document.body.appendChild(tip);
+
+            var lastTipEl = null;
+
+            function showTip(el, e) {
+              var key = el.dataset.tipKey;
+              if (!key || !SKEW_TIPS[key]) return;
+              tip.textContent = SKEW_TIPS[key];
+              tip.style.display = 'block';
+              moveTip(e);
+            }
+            function moveTip(e) {
+              var px = e.clientX + 14, py = e.clientY - 10;
+              if (px + 250 > window.innerWidth) px = e.clientX - 254;
+              if (py + tip.offsetHeight > window.innerHeight) py = e.clientY - tip.offsetHeight - 6;
+              tip.style.left = px + 'px';
+              tip.style.top  = py + 'px';
+            }
+            function hideTip() {
+              tip.style.display = 'none';
+              lastTipEl = null;
+            }
+
+            document.addEventListener('mouseover', function (e) {
+              var el = e.target.closest('[data-tip-key]');
+              if (!el) return;
+              lastTipEl = el;
+              showTip(el, e);
+            });
+            document.addEventListener('mousemove', function (e) {
+              if (tip.style.display === 'none') return;
+              moveTip(e);
+            });
+            document.addEventListener('mouseout', function (e) {
+              var el = e.target.closest('[data-tip-key]');
+              if (el) hideTip();
+            });
+            document.addEventListener('click', function (e) {
+              var el = e.target.closest('[data-tip-key]');
+              if (!el) { hideTip(); return; }
+              if (lastTipEl === el && tip.style.display !== 'none') { hideTip(); return; }
+              lastTipEl = el;
+              showTip(el, e);
+            });
+          }
+
+          // ── Dashboard ─────────────────────────────────────────────────
+          var _dashMode = 'ivr'; // 'ivr' | 'skew'
+          var _watchlistData = [];
+
+          window.switchDashMode = function(mode) {
+            _dashMode = mode;
+            var ivrBtn  = document.getElementById('dash-mode-ivr');
+            var skewBtn = document.getElementById('dash-mode-skew');
+            if (mode === 'ivr') {
+              ivrBtn.className  = 'px-3 py-1.5 bg-orange-500 text-white transition-colors';
+              skewBtn.className = 'px-3 py-1.5 bg-white text-gray-600 hover:bg-gray-50 transition-colors';
+            } else {
+              ivrBtn.className  = 'px-3 py-1.5 bg-white text-gray-600 hover:bg-gray-50 transition-colors';
+              skewBtn.className = 'px-3 py-1.5 bg-cyan-500 text-white transition-colors';
+            }
+            renderDashboard(_watchlistData, mode);
+          };
+
+          function degToXY(cx, cy, r, deg) {
+            var rad = deg * Math.PI / 180;
+            return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+          }
+
+          function buildArcPath(cx, cy, r, startDeg, endDeg) {
+            var s    = degToXY(cx, cy, r, startDeg);
+            var e    = degToXY(cx, cy, r, endDeg);
+            var large = (endDeg - startDeg) > 180 ? 1 : 0;
+            return 'M' + s[0].toFixed(1) + ',' + s[1].toFixed(1) +
+              ' A' + r + ',' + r + ' 0 ' + large + ' 1 ' +
+              e[0].toFixed(1) + ',' + e[1].toFixed(1);
+          }
+
+          // Strategy label combining ivr + skew_rank
+          function strategyInfo(ivr, skewRank) {
+            var ivHigh = ivr !== null && ivr >= 60;
+            var ivLow  = ivr !== null && ivr < 30;
+            var skHigh = skewRank !== null && skewRank >= 60;
+            var skLow  = skewRank !== null && skewRank < 30;
+            if (ivr === null) return { text: '觀望', color: '#9ca3af' };
+            if (ivHigh && skHigh) return { text: '適合賣 Call・偏空',  color: '#dc2626' };
+            if (ivHigh && skLow)  return { text: '適合 CSP・偏多',     color: '#ea580c' };
+            if (ivHigh)           return { text: '適合賣方・方向中性', color: '#ea580c' };
+            if (ivLow  && skLow)  return { text: '適合買 Call',        color: '#16a34a' };
+            if (ivLow  && skHigh) return { text: '適合買 Put',         color: '#dc2626' };
+            return { text: '觀望', color: '#9ca3af' };
+          }
+
+          function buildGaugeCard(item, mode) {
+            var W = 128, H = 86, cx = 64, cy = 68, r = 50, sw = 10;
+            var isIvr = mode !== 'skew';
+
+            // Rank value for this mode
+            var rank = isIvr
+              ? (item.ivr_1y  !== null && item.ivr_1y  !== undefined ? parseFloat(item.ivr_1y)  : null)
+              : (item.skew_rank !== null && item.skew_rank !== undefined ? parseFloat(item.skew_rank) : null);
+
+            // IV Rank: warm palette (orange/red border)
+            // Skew Rank: cool palette (blue/cyan border)
+            var needleColor, borderColor, segLow, segMid, segHigh;
+            if (isIvr) {
+              segLow  = '#2ecc8e'; segMid = '#e6952a'; segHigh = '#e05252';
+              needleColor = rank === null ? '#9ca3af'
+                : rank >= 60 ? '#e05252' : rank >= 30 ? '#e6952a' : '#2ecc8e';
+              borderColor = rank === null ? '#e5e7eb'
+                : rank >= 60 ? '#fecaca' : rank >= 30 ? '#fed7aa' : '#bbf7d0';
+            } else {
+              // Skew: >= 60 red, 30-60 gray, < 30 green
+              segLow  = '#22d3ee'; segMid = '#94a3b8'; segHigh = '#f87171';
+              needleColor = rank === null ? '#9ca3af'
+                : rank >= 60 ? '#f87171' : rank >= 30 ? '#94a3b8' : '#22d3ee';
+              borderColor = rank === null ? '#e5e7eb'
+                : rank >= 60 ? '#fecaca' : rank >= 30 ? '#e2e8f0' : '#a5f3fc';
+            }
+
+            var svg = '';
+            svg += '<path d="' + buildArcPath(cx, cy, r, 180, 360) +
+              '" fill="none" stroke="#f3f4f6" stroke-width="' + sw + '" stroke-linecap="butt"/>';
+
+            if (rank !== null) {
+              svg += '<path d="' + buildArcPath(cx, cy, r, 180, 234) +
+                '" fill="none" stroke="' + segLow + '" stroke-width="' + sw + '" stroke-linecap="butt"/>';
+              svg += '<path d="' + buildArcPath(cx, cy, r, 234, 288) +
+                '" fill="none" stroke="' + segMid + '" stroke-width="' + sw + '" stroke-linecap="butt"/>';
+              svg += '<path d="' + buildArcPath(cx, cy, r, 288, 360) +
+                '" fill="none" stroke="' + segHigh + '" stroke-width="' + sw + '" stroke-linecap="butt"/>';
+
+              var ndeg = (180 + rank / 100 * 180) * Math.PI / 180;
+              var nl   = r * 0.76;
+              svg += '<line x1="' + cx + '" y1="' + cy + '"' +
+                ' x2="' + (cx + nl * Math.cos(ndeg)).toFixed(1) + '"' +
+                ' y2="' + (cy + nl * Math.sin(ndeg)).toFixed(1) + '"' +
+                ' stroke="' + needleColor + '" stroke-width="2.5" stroke-linecap="round"/>';
+              svg += '<circle cx="' + cx + '" cy="' + cy + '" r="3.5" fill="' + needleColor + '"/>';
+            }
+
+            svg += '<text x="' + cx + '" y="' + (cy + 16) + '"' +
+              ' text-anchor="middle" font-size="15" font-weight="700" fill="' + needleColor + '">' +
+              (rank !== null ? rank.toFixed(1) : '—') + '</text>';
+            var rankTipHtml = !isIvr
+              ? '<div style="text-align:center;margin-top:-12px;margin-bottom:2px">' +
+                '<span data-tip-key="rank" style="cursor:pointer;color:#94a3b8;font-size:9px;user-select:none">❓ Skew Rank</span>' +
+                '</div>'
+              : '';
+
+            var lp = degToXY(cx, cy, r, 180);
+            var rp = degToXY(cx, cy, r, 360);
+            svg += '<text x="' + (lp[0] + 6).toFixed(0) + '" y="' + (lp[1] + 4).toFixed(0) +
+              '" text-anchor="middle" font-size="7" fill="#9ca3af">0</text>';
+            svg += '<text x="' + (rp[0] - 6).toFixed(0) + '" y="' + (rp[1] + 4).toFixed(0) +
+              '" text-anchor="middle" font-size="7" fill="#9ca3af">100</text>';
+
+            // Bottom details (10px gray)
+            var detailLine;
+            if (isIvr) {
+              var atmStr = item.latest_atm_iv !== null && item.latest_atm_iv !== undefined
+                ? 'ATM IV: ' + (parseFloat(item.latest_atm_iv) * 100).toFixed(1) + '%'
+                : (rank === null ? '尚無資料' : '');
+              detailLine = '<div style="text-align:center;font-size:10px;color:#9ca3af;margin-top:-2px">' + atmStr + '</div>';
+            } else {
+              var putStr  = item.put_iv_025  !== null && item.put_iv_025  !== undefined
+                ? (parseFloat(item.put_iv_025)  * 100).toFixed(1) + '%' : '—';
+              var callStr = item.call_iv_025 !== null && item.call_iv_025 !== undefined
+                ? (parseFloat(item.call_iv_025) * 100).toFixed(1) + '%' : '—';
+              var skewStr = item.skew_pts    !== null && item.skew_pts    !== undefined
+                ? (parseFloat(item.skew_pts) >= 0 ? '+' : '') + parseFloat(item.skew_pts).toFixed(1) + ' pts' : '—';
+              var tipStyle = 'cursor:pointer;color:#94a3b8;font-size:9px;vertical-align:middle;margin-left:2px;user-select:none';
+              detailLine =
+                '<div style="text-align:center;font-size:10px;color:#9ca3af;margin-top:-2px">' +
+                  'Put: ' + putStr +
+                  '<span data-tip-key="put" style="' + tipStyle + '">❓</span>' +
+                  ' | Call: ' + callStr +
+                  '<span data-tip-key="call" style="' + tipStyle + '">❓</span>' +
+                '</div>' +
+                '<div style="text-align:center;font-size:10px;color:#9ca3af">' +
+                  'Skew: ' + skewStr +
+                  '<span data-tip-key="skew" style="' + tipStyle + '">❓</span>' +
+                '</div>';
+            }
+
+            // Strategy label
+            var ivr   = item.ivr_1y    !== null && item.ivr_1y    !== undefined ? parseFloat(item.ivr_1y)    : null;
+            var srank = item.skew_rank !== null && item.skew_rank !== undefined ? parseFloat(item.skew_rank) : null;
+            var strat = strategyInfo(ivr, srank);
+            var stratDiv = '<div style="text-align:center;font-size:11px;font-weight:700;color:' +
+              strat.color + ';margin-top:3px;padding-bottom:2px">' + strat.text + '</div>';
+
+            return '<div class="iv-dash-card" data-ticker="' + item.ticker + '" style="' +
+              'border:2px solid ' + borderColor + ';border-radius:12px;padding:6px 4px 4px;' +
+              'background:#fff;width:128px;cursor:pointer;transition:box-shadow .15s,transform .15s;' +
+              'box-sizing:border-box">' +
+              '<div style="font-size:0.75rem;font-weight:700;color:#374151;text-align:center;margin-bottom:1px">' +
+              item.ticker + '</div>' +
+              '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' + svg + '</svg>' +
+              rankTipHtml +
+              detailLine +
+              stratDiv +
+              '</div>';
+          }
+
+          function renderDashboard(list, mode) {
+            var summaryEl = document.getElementById('iv-dashboard-summary');
+            var cardsEl   = document.getElementById('iv-dashboard-cards');
+            var isIvr     = mode !== 'skew';
+
+            // Update summary bar labels
+            if (isIvr) {
+              document.getElementById('dash-sum-high-label').textContent = 'High Vol · IVR ≥ 60';
+              document.getElementById('dash-sum-mid-label').textContent  = 'Neutral · 30–60';
+              document.getElementById('dash-sum-low-label').textContent  = 'Low Vol · IVR < 30';
+              document.getElementById('dash-sum-high-box').className = 'rounded-lg p-3 text-center bg-red-50';
+              document.getElementById('dash-sum-mid-box').className  = 'rounded-lg p-3 text-center bg-gray-50';
+              document.getElementById('dash-sum-low-box').className  = 'rounded-lg p-3 text-center bg-green-50';
+              document.getElementById('dash-sum-high-label').className = 'text-xs font-medium text-red-700';
+              document.getElementById('dash-sum-mid-label').className  = 'text-xs font-medium text-gray-600';
+              document.getElementById('dash-sum-low-label').className  = 'text-xs font-medium text-green-700';
+              document.getElementById('iv-summary-high-count').className = 'text-2xl font-bold text-red-600 mt-1';
+              document.getElementById('iv-summary-mid-count').className  = 'text-2xl font-bold text-gray-500 mt-1';
+              document.getElementById('iv-summary-low-count').className  = 'text-2xl font-bold text-green-600 mt-1';
+            } else {
+              document.getElementById('dash-sum-high-label').textContent = 'High Put Skew ≥ 60';
+              document.getElementById('dash-sum-mid-label').textContent  = 'Balanced Skew 30–60';
+              document.getElementById('dash-sum-low-label').textContent  = 'Low Put Skew < 30';
+              document.getElementById('dash-sum-high-box').className = 'rounded-lg p-3 text-center bg-red-50';
+              document.getElementById('dash-sum-mid-box').className  = 'rounded-lg p-3 text-center bg-slate-50';
+              document.getElementById('dash-sum-low-box').className  = 'rounded-lg p-3 text-center bg-cyan-50';
+              document.getElementById('dash-sum-high-label').className = 'text-xs font-medium text-red-700';
+              document.getElementById('dash-sum-mid-label').className  = 'text-xs font-medium text-slate-500';
+              document.getElementById('dash-sum-low-label').className  = 'text-xs font-medium text-cyan-700';
+              document.getElementById('iv-summary-high-count').className = 'text-2xl font-bold text-red-600 mt-1';
+              document.getElementById('iv-summary-mid-count').className  = 'text-2xl font-bold text-slate-500 mt-1';
+              document.getElementById('iv-summary-low-count').className  = 'text-2xl font-bold text-cyan-600 mt-1';
+            }
+
+            if (!list || !list.length) {
+              cardsEl.innerHTML = '<span style="font-size:.875rem;color:#9ca3af;padding:1rem 0">查詢後自動加入 Watchlist</span>';
+              summaryEl.classList.add('hidden');
+              return;
+            }
+
+            // Summary counts
+            var rankKey = isIvr ? 'ivr_1y' : 'skew_rank';
+            var withRank = list.filter(function(d) { return d[rankKey] !== null && d[rankKey] !== undefined; });
+            var high = withRank.filter(function(d) { return parseFloat(d[rankKey]) >= 60; }).length;
+            var mid  = withRank.filter(function(d) { var v = parseFloat(d[rankKey]); return v >= 30 && v < 60; }).length;
+            var low  = withRank.filter(function(d) { return parseFloat(d[rankKey]) < 30; }).length;
+
+            document.getElementById('iv-summary-high-count').textContent = high;
+            document.getElementById('iv-summary-mid-count').textContent  = mid;
+            document.getElementById('iv-summary-low-count').textContent  = low;
+            summaryEl.classList.remove('hidden');
+
+            var sorted = list.slice().sort(function(a, b) {
+              var ra = a[rankKey] !== null && a[rankKey] !== undefined ? parseFloat(a[rankKey]) : -1;
+              var rb = b[rankKey] !== null && b[rankKey] !== undefined ? parseFloat(b[rankKey]) : -1;
+              return rb - ra;
+            });
+
+            cardsEl.innerHTML = sorted.map(function(item) { return buildGaugeCard(item, mode); }).join('');
+
+            cardsEl.querySelectorAll('.iv-dash-card').forEach(function(card) {
+              card.addEventListener('click', function() {
+                var ticker = card.dataset.ticker;
+                document.getElementById('iv-ticker').value = ticker;
+                loadExpirations(ticker);
+                document.getElementById('iv-analysis-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+              });
+              card.addEventListener('mouseover', function() {
+                card.style.boxShadow = '0 4px 12px rgba(0,0,0,.12)';
+                card.style.transform = 'translateY(-2px)';
+              });
+              card.addEventListener('mouseout', function() {
+                card.style.boxShadow = '';
+                card.style.transform = '';
+              });
+            });
+          }
+
+          // Mode toggle buttons
+          document.getElementById('dash-mode-ivr').addEventListener('click', function() { switchDashMode('ivr'); });
+          document.getElementById('dash-mode-skew').addEventListener('click', function() { switchDashMode('skew'); });
+
           function loadWatchlist() {
             fetch('/api/iv_analysis/watchlist')
               .then(function (r) { return r.json(); })
-              .then(function (data) { renderWatchlist(data.watchlist); })
+              .then(function (data) {
+                _watchlistData = data.watchlist || [];
+                renderWatchlist(_watchlistData);
+                renderDashboard(_watchlistData, _dashMode);
+              })
               .catch(function () {});
           }
 
@@ -418,6 +729,7 @@ class IvAnalysis::PageComponent < ApplicationComponent
               .catch(function () {});
           });
 
+          initTooltip();
           loadWatchlist();
         })();
       JS
