@@ -48,7 +48,7 @@ module.exports = {
       restart_delay: 5000,
     },
 
-    // ── 歐歐每日盤前報告（週一至五 13:00 UTC = 美東夏令 09:00 EDT / 冬令 08:00 EST）
+    // ── 歐歐每日盤前報告（迴圈模式，腳本內部判斷週一至五 09:00–09:04 ET）
     {
       name: 'ouou-pre-market',
       script: './bin/ouou-pre-market.sh',
@@ -60,8 +60,45 @@ module.exports = {
         PATH: '/home/idarfan/.rbenv/shims:/home/idarfan/.rbenv/bin:/usr/bin:/bin',
         RBENV_ROOT: '/home/idarfan/.rbenv',
       },
-      cron_restart: '0 13 * * 1-5',
-      autorestart: false,   // 執行完即停，不自動重啟
+      autorestart: true,
+      watch: false,
+      max_restarts: 10,
+      min_uptime: '10s',
+      restart_delay: 5000,
+    },
+
+    // ── IV 每日 ATM IV 快照（收盤後 16:30 ET = 20:30 UTC）
+    // 所有 cron 以 UTC 表達（pm2 daemon 啟動時需設 TZ=UTC）
+    {
+      name: 'iv-daily-snapshot',
+      script: './bin/iv-daily-snapshot.sh',
+      cwd: '/home/idarfan/fairprice',
+      interpreter: '/bin/bash',
+      cron_restart: '30 20 * * 1-5',
+      autorestart: false,
+      watch: false,
+    },
+
+    // ── IV 每日 25-delta Skew 快照（收盤後 16:45 ET = 20:45 UTC）
+    {
+      name: 'iv-skew-snapshot',
+      script: './bin/iv-skew-snapshot.sh',
+      cwd: '/home/idarfan/fairprice',
+      interpreter: '/bin/bash',
+      cron_restart: '45 20 * * 1-5',
+      autorestart: false,
+      watch: false,
+    },
+
+    // ── IV 盤中 30 分鐘 Skew 快照（ET 09:00-16:00 = UTC 13:00-20:00）
+    // rake task 內部再過濾非交易時段
+    {
+      name: 'iv-skew-intraday',
+      script: './bin/iv-skew-intraday.sh',
+      cwd: '/home/idarfan/fairprice',
+      interpreter: '/bin/bash',
+      cron_restart: '*/30 13-20 * * 1-5',
+      autorestart: false,
       watch: false,
     },
   ],
