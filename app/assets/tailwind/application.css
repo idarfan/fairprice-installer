@@ -42,3 +42,163 @@
 @media (hover: hover) {
   .hover\:bg-blue-400:hover { background-color: var(--color-blue-400, oklch(70.7% .165 254.624)); }
 }
+
+/* Technical Dashboard score card color variants — static declarations for Tailwind scanner */
+.border-green-500 { border-color: var(--color-green-500, oklch(72.3% .219 149.579)); }
+.border-red-500   { border-color: var(--color-red-500,   oklch(63.7% .237 25.331));  }
+.border-gray-500  { border-color: var(--color-gray-500,  oklch(55.1% .027 264.364)); }
+.border-yellow-500{ border-color: var(--color-yellow-500,oklch(79.5% .184 86.047));  }
+.text-green-400  { color: var(--color-green-400,  oklch(79.2% .209 151.711)); }
+.text-red-400    { color: var(--color-red-400,    oklch(70.4% .191 22.216));  }
+.text-gray-400   { color: var(--color-gray-400,   oklch(70.7% .022 261.325)); }
+.text-yellow-400 { color: var(--color-yellow-400, oklch(85.2% .199 91.936));  }
+.bg-green-500\/10  { background-color: color-mix(in srgb, oklch(72.3% .219 149.579) 10%, transparent); }
+.bg-red-500\/10    { background-color: color-mix(in srgb, oklch(63.7% .237 25.331)  10%, transparent); }
+.bg-gray-500\/10   { background-color: color-mix(in srgb, oklch(55.1% .027 264.364) 10%, transparent); }
+.bg-yellow-500\/10 { background-color: color-mix(in srgb, oklch(79.5% .184 86.047)  10%, transparent); }
+
+/* LEAPS table — odd row background (bypasses Tailwind v4 scanner) */
+.bg-gray-50\/50 { background-color: color-mix(in srgb, oklch(98.5% .002 247.839) 50%, transparent); }
+
+/* ── Data tooltip (pure CSS, no JS) ─────────────────────────────────────── */
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+[data-tooltip]:hover::after { opacity: 1; }
+
+/* ── LEAPS 欄位教學（driver.js 深色主題 override + hover tooltip）──────────── */
+/* driver popover 預設白底；改深色卡片，色值對齊 Tailwind gray 色階（不另造色票） */
+.driver-popover.driver-popover {
+  background-color: #111827;            /* gray-900 */
+  color: #d1d5db;                       /* gray-300 */
+  border: 1px solid #374151;            /* gray-700 */
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  max-width: 400px;                     /* 配合字級放大，避免卡片過長 */
+}
+.driver-popover .driver-popover-title { color: #f9fafb; font-size: 17px; }      /* gray-50 */
+.driver-popover .driver-popover-description { color: #d1d5db; font-size: 15px; line-height: 1.8; }
+.driver-popover .driver-popover-close-btn { color: #6b7280; }                   /* gray-500 */
+.driver-popover .driver-popover-close-btn:hover, .driver-popover .driver-popover-close-btn:focus { color: #f9fafb; }
+.driver-popover .driver-popover-progress-text { color: #9ca3af; }               /* gray-400 */
+.driver-popover .driver-popover-footer button {
+  background-color: #1f2937;            /* gray-800 */
+  color: #e5e7eb;                       /* gray-200 */
+  border: 1px solid #4b5563;            /* gray-600 */
+  text-shadow: none;
+}
+.driver-popover .driver-popover-footer button:hover { background-color: #374151; }
+.driver-popover .driver-popover-arrow-side-left.driver-popover-arrow   { border-left-color: #111827; }
+.driver-popover .driver-popover-arrow-side-right.driver-popover-arrow  { border-right-color: #111827; }
+.driver-popover .driver-popover-arrow-side-top.driver-popover-arrow    { border-top-color: #111827; }
+.driver-popover .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #111827; }
+
+/* hover tooltip（#leaps-col-tip，掛 body、export root 之外） */
+#leaps-col-tip {
+  position: fixed;
+  z-index: 99999;
+  max-width: 340px;
+  background: #111827;
+  color: #d1d5db;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s ease;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+#leaps-col-tip .tip-t { font-weight: 700; color: #f9fafb; margin-bottom: 4px; font-size: 15px; }
+
+/* 可點擊的欄位標題視覺提示 */
+th[data-tip-key] { cursor: help; }
+th[data-tip-key]:hover { color: #2563eb; }                      /* blue-600 */
+
+/* ── LEAPS 術語字卡（rotateY 翻面、Web Speech 發音、奇偶區隔同 concept-card）─── */
+.leaps-vocab-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 12px; }
+@media (max-width: 900px) { .leaps-vocab-grid { grid-template-columns: repeat(2, 1fr); } }
+.leaps-vocab-card { perspective: 700px; height: 190px; cursor: pointer; }
+.leaps-vocab-inner {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform .45s cubic-bezier(.4, 0, .2, 1);
+}
+.leaps-vocab-card.flipped .leaps-vocab-inner { transform: rotateY(180deg); }
+.leaps-vocab-front, .leaps-vocab-back {
+  position: absolute; inset: 0;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  border-radius: 10px; padding: 14px 16px;
+  display: flex; flex-direction: column;
+  border: 2px solid #f97316;   /* orange-500，同 leaps-concept-card */
+  color: #1f2937;
+}
+.leaps-vocab-card:nth-of-type(odd)  .leaps-vocab-front,
+.leaps-vocab-card:nth-of-type(odd)  .leaps-vocab-back  { background: #dcfce7; } /* green-100 */
+.leaps-vocab-card:nth-of-type(even) .leaps-vocab-front,
+.leaps-vocab-card:nth-of-type(even) .leaps-vocab-back  { background: #ede9fe; } /* purple-100 */
+.leaps-vocab-back { transform: rotateY(180deg); }
+.leaps-vc-en   { font-size: 17px; font-weight: 800; color: #111827; line-height: 1.25; }
+.leaps-vc-ipa  { font-size: 13px; color: #4b5563; font-family: monospace; margin-top: 2px; }
+.leaps-vc-zh   { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 6px; }
+.leaps-vc-hint { font-size: 12px; color: #4b5563; margin-top: auto; padding-top: 8px; font-style: italic; }
+.leaps-vc-back-title { font-size: 14px; font-weight: 800; color: #111827; margin-bottom: 6px; }
+.leaps-vc-back-body  { font-size: 13px; line-height: 1.6; flex: 1; overflow: hidden; color: #1f2937; }
+.leaps-vc-example {
+  font-size: 12px; color: #4b5563; margin-top: 6px; line-height: 1.5;
+  border-top: 1px solid #f97316; padding-top: 6px;
+}
+.leaps-vocab-card .speak-btn {
+  position: absolute; top: 10px; right: 10px;
+  width: 30px; height: 30px; border-radius: 9999px;
+  background: #ffffff; border: 1px solid #f97316;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; cursor: pointer; transition: all .15s;
+}
+.leaps-vocab-card .speak-btn:hover { background: #fff7ed; transform: scale(1.1); } /* orange-50 */
+.leaps-vocab-card .speak-btn.speaking { border-color: #22c55e; background: rgba(34,197,94,.15); }  /* green-500 */
+.leaps-vocab-summary {
+  cursor: pointer; font-size: 0.875rem; font-weight: 600; color: #374151;
+  padding: 12px 16px; user-select: none;
+}
+.leaps-vocab-summary:hover { color: #2563eb; }
+
+/* ── LEAPS 推薦分析名詞解釋圖卡（原生 details、奇偶區隔、匯出入鏡）──────────── */
+.leaps-concept-card {
+  border: 2px solid #f97316; /* orange-500 */
+  border-radius: 10px;
+  color: #1f2937; overflow: hidden;
+}
+.leaps-concept-card:nth-of-type(odd)  { background: #dcfce7; } /* green-100 */
+.leaps-concept-card:nth-of-type(even) { background: #ede9fe; } /* purple-100 */
+.leaps-concept-summary {
+  cursor: pointer; padding: 10px 14px; font-size: 14px; font-weight: 700;
+  color: #1f2937; user-select: none; list-style-position: inside;
+}
+.leaps-concept-summary:hover { background: rgba(0, 0, 0, .05); }
+.leaps-concept-body {
+  padding: 4px 16px 14px; font-size: 13.5px; line-height: 1.75;
+  border-top: 1px solid #f97316;
+}
+.leaps-concept-body p { margin-top: 8px; }
+.leaps-concept-body strong { color: #111827; font-weight: 700; }

@@ -7,7 +7,7 @@
 set -euo pipefail
 
 # ── 版本常數 ────────────────────────────────────────────────
-readonly SCRIPT_VERSION="20260515"
+readonly SCRIPT_VERSION="20260711"
 readonly RUBY_VERSION="4.0.1"
 readonly BUNDLER_VERSION="4.0.7"
 readonly MIN_NODE_MAJOR=20
@@ -146,6 +146,7 @@ phase1_system_deps() {
     libssl-dev libreadline-dev zlib1g-dev libyaml-dev
     libffi-dev libgdbm-dev libgmp-dev libpq-dev
     postgresql postgresql-contrib
+    python3-websockets  # Barchart CDP 爬蟲（options_flow_scraper.py）用系統 python3，非 venv
   )
 
   local missing=()
@@ -1226,6 +1227,11 @@ phase12_summary() {
   echo "  ║  保留天數：7 天（自動清除舊備份）                ║"
   echo "  ╚══════════════════════════════════════════════════╝"
   echo -e "${NC}"
+
+  echo ""
+  warn "三維度判斷／LEAPS／PMCC 功能需要 Barchart CDP 爬蟲，須在 Windows 端手動啟動："
+  warn "  chrome.exe --remote-debugging-port=9222"
+  warn "（WSL2 mirrored 網路下 WSL2 會透過 localhost:9222 連線，無法由此安裝程式自動完成）"
 
   echo ""
   pm2 list
