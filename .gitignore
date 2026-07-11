@@ -20,6 +20,8 @@ config/credentials/*.key
 
 # Python venv（options collector）
 /scripts/venv/
+__pycache__/
+*.pyc
 
 # Windows WSL2 Zone.Identifier
 *:Zone.Identifier
